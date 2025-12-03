@@ -1,0 +1,36 @@
+# Binaries
+nectarcollector
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+
+# Output of go build
+*.o
+*.a
+
+# Go workspace file
+go.work
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Log files (don't commit actual logs)
+*.log
+/logs/
+/var/
+
+# Config with secrets (example config is fine)
+config.json
+!configs/example-config.json

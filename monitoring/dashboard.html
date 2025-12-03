@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🐝 HoneyView - NectarCollector Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #FDB813 0%, #FFD700 100%);
+            color: #2c3e50;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            color: #FDB813;
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: "🐝";
+            position: absolute;
+            font-size: 120px;
+            opacity: 0.1;
+            right: 20px;
+            top: -20px;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-20px); }
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header .subtitle {
+            font-size: 1.2em;
+            color: #FFD700;
+            font-style: italic;
+        }
+
+        .status-bar {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        .status-indicator.connected {
+            background: #27ae60;
+            box-shadow: 0 0 10px #27ae60;
+        }
+
+        .status-indicator.disconnected {
+            background: #e74c3c;
+            box-shadow: 0 0 10px #e74c3c;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .panel {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .panel h2 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            border-bottom: 3px solid #FDB813;
+            padding-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .channel-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            border-left: 4px solid #FDB813;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .channel-card:hover {
+            transform: translateX(5px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .channel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .channel-name {
+            font-weight: bold;
+            font-size: 1.1em;
+            color: #2c3e50;
+        }
+
+        .state-badge {
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 0.85em;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .state-detecting { background: #3498db; color: white; }
+        .state-running { background: #27ae60; color: white; }
+        .state-reconnecting { background: #f39c12; color: white; }
+        .state-stopped { background: #95a5a6; color: white; }
+        .state-error { background: #e74c3c; color: white; }
+
+        .channel-stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .stat-label {
+            font-size: 0.85em;
+            color: #7f8c8d;
+            margin-bottom: 3px;
+        }
+
+        .stat-value {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .live-feed {
+            grid-column: 1 / -1;
+        }
+
+        .feed-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: #FDB813;
+            color: #2c3e50;
+        }
+
+        .btn-primary:hover {
+            background: #FFD700;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+
+        .btn-danger {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c0392b;
+        }
+
+        .feed-container {
+            background: #1e1e1e;
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            padding: 20px;
+            border-radius: 8px;
+            height: 500px;
+            overflow-y: auto;
+            font-size: 0.9em;
+            line-height: 1.5;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .feed-line {
+            margin-bottom: 5px;
+        }
+
+        .feed-timestamp {
+            color: #FFD700;
+        }
+
+        .feed-fips {
+            color: #3498db;
+        }
+
+        .feed-designation {
+            color: #e74c3c;
+        }
+
+        .feed-content {
+            color: #00ff00;
+        }
+
+        .no-data {
+            color: #7f8c8d;
+            text-align: center;
+            padding: 20px;
+            font-style: italic;
+        }
+
+        .footer {
+            text-align: center;
+            color: #2c3e50;
+            margin-top: 20px;
+            font-size: 0.9em;
+        }
+
+        .honeycomb {
+            display: inline-block;
+            animation: spin 3s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        select {
+            padding: 10px;
+            border: 2px solid #FDB813;
+            border-radius: 5px;
+            font-size: 1em;
+            background: white;
+            cursor: pointer;
+        }
+
+        .refresh-info {
+            color: #7f8c8d;
+            font-size: 0.9em;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🐝 HoneyView</h1>
+            <div class="subtitle">NectarCollector Live Dashboard</div>
+        </div>
+
+        <div class="status-bar">
+            <div class="status-item">
+                <div class="status-indicator connected" id="health-indicator"></div>
+                <strong>System Status:</strong> <span id="system-status">Checking...</span>
+            </div>
+            <div class="status-item">
+                <strong>Instance:</strong> <span id="instance-id">-</span>
+            </div>
+            <div class="status-item">
+                <div class="status-indicator" id="nats-indicator"></div>
+                <strong>NATS:</strong> <span id="nats-status">-</span>
+            </div>
+            <div class="status-item refresh-info">
+                <span class="honeycomb">⬡</span> Auto-refresh: 2s
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="panel">
+                <h2>🍯 Hive Channels</h2>
+                <div id="channels-container">
+                    <div class="no-data">Loading hive data...</div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h2>📊 Hive Statistics</h2>
+                <div id="stats-container">
+                    <div class="no-data">Gathering nectar stats...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="panel live-feed">
+                <h2>📡 Live Nectar Stream</h2>
+                <div class="feed-controls">
+                    <select id="channel-select">
+                        <option value="">Select a channel...</option>
+                    </select>
+                    <button class="btn btn-primary" onclick="startLiveFeed()">▶ Start Stream</button>
+                    <button class="btn btn-danger" onclick="stopLiveFeed()">⏸ Pause</button>
+                    <button class="btn btn-primary" onclick="clearFeed()">🗑 Clear</button>
+                </div>
+                <div class="feed-container" id="live-feed">
+                    <div class="no-data">Select a channel and click "Start Stream" to view live data...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            🐝 HoneyView Dashboard | NectarCollector | Buzzing with data since 2025
+        </div>
+    </div>
+
+    <script>
+        let liveFeedInterval = null;
+        let statsInterval = null;
+        let selectedChannel = '';
+        let currentOffset = 0;
+
+        // Fetch and display stats
+        async function updateStats() {
+            try {
+                const response = await fetch('/api/stats');
+                const data = await response.json();
+
+                // Update status bar
+                document.getElementById('instance-id').textContent = data.instance_id || '-';
+
+                const natsIndicator = document.getElementById('nats-indicator');
+                const natsStatus = document.getElementById('nats-status');
+                if (data.nats_connected) {
+                    natsIndicator.className = 'status-indicator connected';
+                    natsStatus.textContent = 'Connected';
+                } else {
+                    natsIndicator.className = 'status-indicator disconnected';
+                    natsStatus.textContent = 'Disconnected';
+                }
+
+                document.getElementById('system-status').textContent = 'Healthy';
+                document.getElementById('health-indicator').className = 'status-indicator connected';
+
+                // Update channels
+                const channelsContainer = document.getElementById('channels-container');
+                const channelSelect = document.getElementById('channel-select');
+
+                if (!data.channels || data.channels.length === 0) {
+                    channelsContainer.innerHTML = '<div class="no-data">No active channels</div>';
+                    return;
+                }
+
+                // Update channel select dropdown
+                const currentSelection = channelSelect.value;
+                channelSelect.innerHTML = '<option value="">Select a channel...</option>';
+                data.channels.forEach(ch => {
+                    const identifier = `${ch.fips_code}-${ch.a_designation}`;
+                    const option = document.createElement('option');
+                    option.value = identifier;
+                    option.textContent = `${identifier} (${ch.device})`;
+                    channelSelect.appendChild(option);
+                });
+                if (currentSelection) {
+                    channelSelect.value = currentSelection;
+                }
+
+                // Update channel cards
+                channelsContainer.innerHTML = data.channels.map(ch => {
+                    const uptime = ch.stats.StartTime ? formatUptime(ch.stats.StartTime) : '-';
+                    const lastLine = ch.stats.LastLineTime ? formatTime(ch.stats.LastLineTime) : 'Never';
+                    const baud = ch.stats.DetectedBaud || 'N/A';
+
+                    return `
+                        <div class="channel-card">
+                            <div class="channel-header">
+                                <div class="channel-name">
+                                    ${ch.fips_code}-${ch.a_designation}
+                                </div>
+                                <div class="state-badge state-${ch.state}">
+                                    ${ch.state}
+                                </div>
+                            </div>
+                            <div style="color: #7f8c8d; font-size: 0.9em; margin-bottom: 10px;">
+                                ${ch.device}
+                            </div>
+                            <div class="channel-stats">
+                                <div class="stat-item">
+                                    <div class="stat-label">Lines Read</div>
+                                    <div class="stat-value">${formatNumber(ch.stats.LinesRead)}</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-label">Bytes Read</div>
+                                    <div class="stat-value">${formatBytes(ch.stats.BytesRead)}</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-label">Baud Rate</div>
+                                    <div class="stat-value">${baud}</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-label">Errors</div>
+                                    <div class="stat-value">${ch.stats.Errors}</div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                // Update aggregate stats
+                const totalLines = data.channels.reduce((sum, ch) => sum + ch.stats.LinesRead, 0);
+                const totalBytes = data.channels.reduce((sum, ch) => sum + ch.stats.BytesRead, 0);
+                const totalErrors = data.channels.reduce((sum, ch) => sum + ch.stats.Errors, 0);
+                const activeChannels = data.channels.filter(ch => ch.state === 'running').length;
+
+                document.getElementById('stats-container').innerHTML = `
+                    <div class="channel-stats">
+                        <div class="stat-item">
+                            <div class="stat-label">🐝 Active Channels</div>
+                            <div class="stat-value">${activeChannels} / ${data.channels.length}</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">📝 Total Lines</div>
+                            <div class="stat-value">${formatNumber(totalLines)}</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">💾 Total Data</div>
+                            <div class="stat-value">${formatBytes(totalBytes)}</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">⚠️ Total Errors</div>
+                            <div class="stat-value">${totalErrors}</div>
+                        </div>
+                    </div>
+                `;
+
+            } catch (error) {
+                console.error('Error updating stats:', error);
+                document.getElementById('system-status').textContent = 'Error';
+                document.getElementById('health-indicator').className = 'status-indicator disconnected';
+            }
+        }
+
+        // Start live feed streaming
+        function startLiveFeed() {
+            const select = document.getElementById('channel-select');
+            selectedChannel = select.value;
+
+            if (!selectedChannel) {
+                alert('Please select a channel first!');
+                return;
+            }
+
+            if (liveFeedInterval) {
+                clearInterval(liveFeedInterval);
+            }
+
+            const feedContainer = document.getElementById('live-feed');
+            feedContainer.innerHTML = '<div class="no-data">🐝 Waiting for nectar from ' + selectedChannel + '...</div>';
+
+            currentOffset = 0;
+            // Poll every 2 seconds instead of 500ms
+            liveFeedInterval = setInterval(updateLiveFeed, 2000);
+            // Initial fetch immediately
+            updateLiveFeed();
+        }
+
+        // Stop live feed
+        function stopLiveFeed() {
+            if (liveFeedInterval) {
+                clearInterval(liveFeedInterval);
+                liveFeedInterval = null;
+            }
+        }
+
+        // Clear feed display
+        function clearFeed() {
+            const feedContainer = document.getElementById('live-feed');
+            feedContainer.innerHTML = '<div class="no-data">Feed cleared. Click "Start Stream" to resume...</div>';
+        }
+
+        // Update live feed (reads from log file)
+        async function updateLiveFeed() {
+            if (!selectedChannel) return;
+
+            try {
+                const response = await fetch(`/api/feed?channel=${selectedChannel}&offset=${currentOffset}`);
+                const data = await response.json();
+
+                if (data.lines && data.lines.length > 0) {
+                    const feedContainer = document.getElementById('live-feed');
+
+                    // Remove "waiting" message if present
+                    if (feedContainer.querySelector('.no-data')) {
+                        feedContainer.innerHTML = '';
+                    }
+
+                    // Use document fragment for better performance
+                    const fragment = document.createDocumentFragment();
+
+                    data.lines.forEach(line => {
+                        const lineDiv = document.createElement('div');
+                        lineDiv.className = 'feed-line';
+                        lineDiv.innerHTML = formatFeedLine(line);
+                        fragment.appendChild(lineDiv);
+                    });
+
+                    feedContainer.appendChild(fragment);
+
+                    // Auto-scroll to bottom smoothly
+                    feedContainer.scrollTo({
+                        top: feedContainer.scrollHeight,
+                        behavior: 'smooth'
+                    });
+
+                    // Update offset to total lines in file
+                    currentOffset = data.total_lines;
+
+                    // Keep only last 500 lines displayed
+                    const allLines = feedContainer.querySelectorAll('.feed-line');
+                    if (allLines.length > 500) {
+                        for (let i = 0; i < allLines.length - 500; i++) {
+                            allLines[i].remove();
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error updating live feed:', error);
+            }
+        }
+
+        // Format a feed line with syntax highlighting
+        function formatFeedLine(line) {
+            // Parse: [FIPSCODE][A#][timestamp] content
+            const match = line.match(/\[([^\]]+)\]\[([^\]]+)\]\[([^\]]+)\]\s*(.*)/);
+            if (match) {
+                const [, fips, designation, timestamp, content] = match;
+                return `<span class="feed-fips">[${fips}]</span><span class="feed-designation">[${designation}]</span><span class="feed-timestamp">[${timestamp}]</span> <span class="feed-content">${escapeHtml(content)}</span>`;
+            }
+            return `<span class="feed-content">${escapeHtml(line)}</span>`;
+        }
+
+        // Utility functions
+        function formatNumber(num) {
+            return num.toLocaleString();
+        }
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function formatTime(timestamp) {
+            if (!timestamp) return '-';
+            const date = new Date(timestamp);
+            return date.toLocaleTimeString();
+        }
+
+        function formatUptime(startTime) {
+            const start = new Date(startTime);
+            const now = new Date();
+            const diff = now - start;
+            const hours = Math.floor(diff / 3600000);
+            const minutes = Math.floor((diff % 3600000) / 60000);
+            return `${hours}h ${minutes}m`;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Initialize
+        updateStats();
+        statsInterval = setInterval(updateStats, 2000);
+    </script>
+</body>
+</html>
