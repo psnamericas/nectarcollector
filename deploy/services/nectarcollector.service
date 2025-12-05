@@ -1,0 +1,26 @@
+[Unit]
+Description=NectarCollector Serial CDR Capture Service
+After=network.target nats.service
+Wants=nats.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/nectarcollector -config /etc/nectarcollector/config.json
+Restart=always
+RestartSec=5
+User=nectarcollector
+Group=nectarcollector
+WorkingDirectory=/var/lib/nectarcollector
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/log/nectarcollector /var/lib/nectarcollector
+PrivateTmp=true
+
+# Allow access to serial devices
+SupplementaryGroups=dialout
+
+[Install]
+WantedBy=multi-user.target

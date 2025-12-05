@@ -30,7 +30,12 @@ type PortConfig struct {
 	Device         string `json:"device"`           // e.g., "/dev/ttyUSB0"
 	ADesignation   string `json:"a_designation"`    // "A1" through "A16"
 	FIPSCode       string `json:"fips_code"`        // Optional override for this port
+	Vendor         string `json:"vendor"`           // CPE vendor: "intrado", "solacom", "zetron", "vesta", etc.
+	County         string `json:"county"`           // County name (lowercase): "lancaster", "douglas", etc.
 	BaudRate       int    `json:"baud_rate"`        // 0 = auto-detect
+	DataBits       int    `json:"data_bits"`        // 5, 6, 7, or 8 (default: 8)
+	Parity         string `json:"parity"`           // "none", "odd", "even", "mark", "space" (default: "none")
+	StopBits       int    `json:"stop_bits"`        // 1 or 2 (default: 1)
 	UseFlowControl *bool  `json:"use_flow_control"` // nil = auto-detect
 	Enabled        bool   `json:"enabled"`
 	Description    string `json:"description"`
@@ -53,16 +58,18 @@ type NATSConfig struct {
 
 // LoggingConfig contains logging and log rotation settings
 type LoggingConfig struct {
-	BasePath   string `json:"base_path"`    // Base directory for log files
-	MaxSizeMB  int    `json:"max_size_mb"`  // Max size before rotation
-	MaxBackups int    `json:"max_backups"`  // Max number of old log files
-	Compress   bool   `json:"compress"`     // Compress rotated logs
-	Level      string `json:"level"`        // Log level: debug, info, warn, error
+	BasePath   string `json:"base_path"`   // Base directory for log files
+	MaxSizeMB  int    `json:"max_size_mb"` // Max size before rotation
+	MaxBackups int    `json:"max_backups"` // Max number of old log files
+	Compress   bool   `json:"compress"`    // Compress rotated logs
+	Level      string `json:"level"`       // Log level: debug, info, warn, error
 }
 
 // MonitoringConfig contains HTTP monitoring server settings
 type MonitoringConfig struct {
-	Port int `json:"port"` // HTTP port for monitoring endpoints
+	Port     int    `json:"port"`     // HTTP port for monitoring endpoints
+	Username string `json:"username"` // Basic auth username (empty = no auth)
+	Password string `json:"password"` // Basic auth password
 }
 
 // RecoveryConfig contains reconnection and recovery settings
@@ -135,11 +142,16 @@ func (c *Config) setDefaults() {
 		c.Logging.BasePath = "/var/log/nectarcollector"
 	}
 	if c.Logging.MaxSizeMB == 0 {
-		c.Logging.MaxSizeMB = 100
+		c.Logging.MaxSizeMB = 50
 	}
 	if c.Logging.MaxBackups == 0 {
 		c.Logging.MaxBackups = 10
 	}
+	// Compress defaults to true via JSON unmarshaling (zero value is false, but we
+	// don't override here so users can explicitly set compress: false in config)
+	// Note: To default to true, we'd need a *bool, but for simplicity we accept
+	// that omitting "compress" means false (Go's zero value). Users wanting
+	// compression should explicitly set compress: true.
 	if c.Logging.Level == "" {
 		c.Logging.Level = "info"
 	}

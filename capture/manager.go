@@ -28,22 +28,21 @@ func NewManager(cfg *config.Config, logger *slog.Logger) *Manager {
 	}
 }
 
-// Start initializes and starts all enabled capture channels
+// Start initializes and starts all enabled capture channels.
+// NATS connection is required - returns error if NATS is unavailable.
 func (m *Manager) Start(ctx context.Context) error {
 	m.logger.Info("Starting capture manager", "instance", m.config.App.InstanceID)
 
-	// Connect to NATS
+	// Connect to NATS - required for operation
 	natsConn, err := output.NewNATSConnection(
 		m.config.NATS.URL,
 		m.config.NATS.MaxReconnects,
 		m.logger,
 	)
 	if err != nil {
-		m.logger.Warn("Failed to connect to NATS, continuing without NATS", "error", err)
-		// Continue without NATS - log files will still work
-	} else {
-		m.natsConn = natsConn
+		return fmt.Errorf("NATS connection required: %w", err)
 	}
+	m.natsConn = natsConn
 
 	// Create and start channels for enabled ports
 	startedCount := 0
@@ -181,11 +180,11 @@ func (m *Manager) NATSConnected() bool {
 
 // ChannelInfo contains channel information for API responses
 type ChannelInfo struct {
-	Device       string        `json:"device"`
-	ADesignation string        `json:"a_designation"`
-	FIPSCode     string        `json:"fips_code"`
-	State        string        `json:"state"`
-	Stats        ChannelStats  `json:"stats"`
+	Device       string       `json:"device"`
+	ADesignation string       `json:"a_designation"`
+	FIPSCode     string       `json:"fips_code"`
+	State        string       `json:"state"`
+	Stats        ChannelStats `json:"stats"`
 }
 
 // GetAllStats returns detailed stats for all channels (for API)

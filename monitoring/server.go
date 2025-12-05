@@ -22,10 +22,10 @@ var dashboardHTML embed.FS
 
 // Server provides HTTP monitoring endpoints
 type Server struct {
-	config     *config.MonitoringConfig
-	manager    *capture.Manager
-	logger     *slog.Logger
-	server     *http.Server
+	config      *config.MonitoringConfig
+	manager     *capture.Manager
+	logger      *slog.Logger
+	server      *http.Server
 	logBasePath string
 }
 
@@ -51,10 +51,17 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/stats", s.handleStats)
 	mux.HandleFunc("/api/feed", s.handleFeed)
 
+	// Wrap with basic auth if configured
+	var handler http.Handler = mux
+	if s.config.Username != "" && s.config.Password != "" {
+		handler = s.basicAuth(mux)
+		s.logger.Info("Basic auth enabled for HoneyView")
+	}
+
 	addr := fmt.Sprintf(":%d", s.config.Port)
 	s.server = &http.Server{
 		Addr:    addr,
-		Handler: mux,
+		Handler: handler,
 	}
 
 	s.logger.Info("Starting HoneyView monitoring server", "port", s.config.Port)
@@ -66,6 +73,19 @@ func (s *Server) Start() error {
 	}()
 
 	return nil
+}
+
+// basicAuth wraps a handler with HTTP Basic Authentication
+func (s *Server) basicAuth(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user, pass, ok := r.BasicAuth()
+		if !ok || user != s.config.Username || pass != s.config.Password {
+			w.Header().Set("WWW-Authenticate", `Basic realm="NectarCollector"`)
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // Stop gracefully stops the monitoring server
@@ -108,82 +128,80 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(stats)
 }
 
-// handleFeed returns recent lines from a channel's log file
+// handleFeed returns the last N lines from a channel's log file (tail)
 func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
 	channel := r.URL.Query().Get("channel")
-	offsetStr := r.URL.Query().Get("offset")
-
 	if channel == "" {
 		http.Error(w, "channel parameter required", http.StatusBadRequest)
 		return
 	}
 
-	// Parse offset (line number to start from)
-	offset := 0
-	if offsetStr != "" {
-		if off, err := strconv.Atoi(offsetStr); err == nil {
-			offset = off
+	// Parse optional count parameter (default 50, max 200)
+	count := 50
+	if countStr := r.URL.Query().Get("count"); countStr != "" {
+		if n, err := strconv.Atoi(countStr); err == nil && n > 0 {
+			count = n
 		}
 	}
+	if count > 200 {
+		count = 200
+	}
 
-	// Construct log file path: /var/log/nectarcollector/1429010002-A5.log
 	logPath := filepath.Join(s.logBasePath, channel+".log")
-
-	// Read lines starting from offset
-	lines, totalLines, err := s.readLinesFromOffset(logPath, offset)
+	lines, err := tailFile(logPath, count)
 	if err != nil {
 		s.logger.Warn("Failed to read log file", "path", logPath, "error", err)
-		lines = []string{} // Return empty array on error
-		totalLines = offset
+		lines = []string{}
 	}
 
 	response := map[string]interface{}{
-		"channel":     channel,
-		"lines":       lines,
-		"total_lines": totalLines,
-		"offset":      offset,
+		"channel": channel,
+		"lines":   lines,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
 }
 
-// readLinesFromOffset reads lines from a log file starting from a given line offset
-// Returns the lines read, total line count in file, and any error
-func (s *Server) readLinesFromOffset(logPath string, offset int) ([]string, int, error) {
-	file, err := os.Open(logPath)
+// tailFile returns the last n lines from a file.
+// Uses a ring buffer to keep memory bounded regardless of file size.
+func tailFile(path string, n int) ([]string, error) {
+	file, err := os.Open(path)
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 	defer file.Close()
 
-	var allLines []string
-	scanner := bufio.NewScanner(file)
+	// Ring buffer to hold last n lines
+	ring := make([]string, n)
+	idx := 0
+	count := 0
 
-	// Read all lines (we need total count anyway)
+	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
-		line := scanner.Text()
-		allLines = append(allLines, line)
+		ring[idx] = scanner.Text()
+		idx = (idx + 1) % n
+		count++
 	}
 
 	if err := scanner.Err(); err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 
-	totalLines := len(allLines)
-
-	// If offset is beyond current lines, return empty (nothing new)
-	if offset >= totalLines {
-		return []string{}, totalLines, nil
+	// Extract lines in correct order
+	if count == 0 {
+		return []string{}, nil
 	}
 
-	// Return lines from offset onwards (new lines only)
-	newLines := allLines[offset:]
-
-	// Limit to 100 new lines per request to avoid overwhelming browser
-	if len(newLines) > 100 {
-		newLines = newLines[:100]
+	if count < n {
+		// File has fewer lines than requested
+		return ring[:count], nil
 	}
 
-	return newLines, totalLines, nil
+	// Reorder ring buffer: idx points to oldest line
+	result := make([]string, n)
+	for i := 0; i < n; i++ {
+		result[i] = ring[(idx+i)%n]
+	}
+	return result, nil
 }
