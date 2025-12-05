@@ -162,6 +162,7 @@
         .state-detecting { background: #3498db; color: white; }
         .state-running { background: #27ae60; color: white; }
         .state-reconnecting { background: #f39c12; color: white; }
+        .state-waiting_for_nats { background: #9b59b6; color: white; }
         .state-stopped { background: #95a5a6; color: white; }
         .state-error { background: #e74c3c; color: white; }
 
@@ -367,7 +368,6 @@
         let liveFeedInterval = null;
         let statsInterval = null;
         let selectedChannel = '';
-        let currentOffset = 0;
 
         // Fetch and display stats
         async function updateStats() {
@@ -506,8 +506,7 @@
             const feedContainer = document.getElementById('live-feed');
             feedContainer.innerHTML = '<div class="no-data">🐝 Waiting for nectar from ' + selectedChannel + '...</div>';
 
-            currentOffset = 0;
-            // Poll every 2 seconds instead of 500ms
+            // Poll every 2 seconds
             liveFeedInterval = setInterval(updateLiveFeed, 2000);
             // Initial fetch immediately
             updateLiveFeed();
@@ -527,21 +526,19 @@
             feedContainer.innerHTML = '<div class="no-data">Feed cleared. Click "Start Stream" to resume...</div>';
         }
 
-        // Update live feed (reads from log file)
+        // Update live feed (reads last N lines from log file)
         async function updateLiveFeed() {
             if (!selectedChannel) return;
 
             try {
-                const response = await fetch(`/api/feed?channel=${selectedChannel}&offset=${currentOffset}`);
+                const response = await fetch(`/api/feed?channel=${selectedChannel}&count=50`);
                 const data = await response.json();
 
                 if (data.lines && data.lines.length > 0) {
                     const feedContainer = document.getElementById('live-feed');
 
-                    // Remove "waiting" message if present
-                    if (feedContainer.querySelector('.no-data')) {
-                        feedContainer.innerHTML = '';
-                    }
+                    // Replace entire content with latest lines (tail view)
+                    feedContainer.innerHTML = '';
 
                     // Use document fragment for better performance
                     const fragment = document.createDocumentFragment();
@@ -560,17 +557,6 @@
                         top: feedContainer.scrollHeight,
                         behavior: 'smooth'
                     });
-
-                    // Update offset to total lines in file
-                    currentOffset = data.total_lines;
-
-                    // Keep only last 500 lines displayed
-                    const allLines = feedContainer.querySelectorAll('.feed-line');
-                    if (allLines.length > 500) {
-                        for (let i = 0; i < allLines.length - 500; i++) {
-                            allLines[i].remove();
-                        }
-                    }
                 }
             } catch (error) {
                 console.error('Error updating live feed:', error);

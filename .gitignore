@@ -1,5 +1,6 @@
 # Binaries
 nectarcollector
+NectarCollector
 *.exe
 *.dll
 *.so
@@ -31,6 +32,9 @@ Thumbs.db
 /logs/
 /var/
 
-# Config with secrets (example config is fine)
+# Config with secrets (example configs are fine)
 config.json
-!configs/example-config.json
+!configs/*.json
+
+# Claude Code local settings (keep CLAUDE.md, ignore local state)
+.claude/
