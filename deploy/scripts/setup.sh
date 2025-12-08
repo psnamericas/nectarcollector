@@ -34,6 +34,23 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOG_FILE="/var/log/nectarcollector-setup.log"
 CONFIG_FILE="${1:-}"
 
+# Auto-discover config if not specified
+if [[ -z "$CONFIG_FILE" ]]; then
+    for candidate in \
+        "${SCRIPT_DIR}/setup-config.json" \
+        "${SCRIPT_DIR}/config.json" \
+        "${SCRIPT_DIR}/../configs/setup-*.json" \
+        "/opt/nectarcollector/setup-config.json"; do
+        # Use first match (glob expands, take first)
+        for f in $candidate; do
+            if [[ -f "$f" ]]; then
+                CONFIG_FILE="$f"
+                break 2
+            fi
+        done
+    done
+fi
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -46,6 +63,7 @@ NC='\033[0m' # No Color
 # Software versions
 GO_VERSION="1.23.4"
 NATS_VERSION="2.10.22"
+NATS_CLI_VERSION="0.1.5"
 
 #-------------------------------------------------------------------------------
 # Utility Functions
@@ -88,12 +106,12 @@ prompt() {
     local default="${2:-}"
     local response
     if [[ -n "$default" ]]; then
-        echo -en "${YELLOW}?${NC} ${prompt} [${default}]: "
-        read -r response
+        echo -en "${YELLOW}?${NC} ${prompt} [${default}]: " >&2
+        read -r response </dev/tty
         echo "${response:-$default}"
     else
-        echo -en "${YELLOW}?${NC} ${prompt}: "
-        read -r response
+        echo -en "${YELLOW}?${NC} ${prompt}: " >&2
+        read -r response </dev/tty
         echo "$response"
     fi
 }
@@ -103,12 +121,12 @@ prompt_password() {
     local password
     local confirm
     while true; do
-        echo -en "${YELLOW}?${NC} ${prompt}: "
-        read -rs password
-        echo
-        echo -en "${YELLOW}?${NC} Confirm password: "
-        read -rs confirm
-        echo
+        echo -en "${YELLOW}?${NC} ${prompt} (input hidden): " >&2
+        IFS= read -rs password </dev/tty
+        echo >&2
+        echo -en "${YELLOW}?${NC} Confirm password: " >&2
+        IFS= read -rs confirm </dev/tty
+        echo >&2
         if [[ "$password" == "$confirm" ]]; then
             if [[ ${#password} -ge 12 ]]; then
                 echo "$password"
@@ -172,29 +190,18 @@ phase_identity() {
     log PHASE "PHASE 1: System Identity"
 
     local hostname
-    local instance_id
     local fips_code
 
     # Load from config or prompt
     if [[ -n "$CONFIG_FILE" ]] && [[ -f "$CONFIG_FILE" ]]; then
         hostname=$(jq -r '.hostname // empty' "$CONFIG_FILE")
-        instance_id=$(jq -r '.instance_id // empty' "$CONFIG_FILE")
         fips_code=$(jq -r '.fips_code // empty' "$CONFIG_FILE")
         log INFO "Loaded identity from config file"
     fi
 
     # Prompt for missing values
     hostname="${hostname:-$(prompt "Hostname (e.g., psna-ne-lancaster-01)")}"
-    instance_id="${instance_id:-$(prompt "Instance ID (e.g., ne-lancaster-01)")}"
     fips_code="${fips_code:-$(prompt "Primary FIPS code (e.g., 3110900001)")}"
-
-    # Validate hostname format
-    if [[ ! "$hostname" =~ ^psna-[a-z]{2}-[a-z0-9-]+$ ]]; then
-        log WARN "Hostname doesn't match pattern: psna-{state}-{region}-{location}"
-        if ! confirm "Continue anyway?"; then
-            die "Aborted by user"
-        fi
-    fi
 
     # Set hostname
     log INFO "Setting hostname to: $hostname"
@@ -208,8 +215,8 @@ phase_identity() {
         echo "127.0.1.1	$hostname" >> /etc/hosts
     fi
 
-    # Store for later phases
-    echo "$instance_id" > /tmp/.nc_instance_id
+    # Store for later phases (instance_id = hostname)
+    echo "$hostname" > /tmp/.nc_instance_id
     echo "$fips_code" > /tmp/.nc_fips_code
 
     log OK "Hostname set to: $hostname"
@@ -224,23 +231,31 @@ phase_users() {
 
     # Create psna user if doesn't exist
     if id "psna" &>/dev/null; then
-        log INFO "User 'psna' already exists"
+        log OK "User 'psna' already exists"
+        if confirm "Reset password for 'psna' user?"; then
+            local password
+            password=$(prompt_password "Enter new password for psna user")
+            echo "psna:$password" | chpasswd
+            log OK "Password updated for 'psna'"
+        else
+            log INFO "Keeping existing password"
+        fi
     else
         log INFO "Creating user 'psna'"
         useradd -m -s /bin/bash -G sudo,dialout psna
         log OK "User 'psna' created"
-    fi
 
-    # Set password for psna
-    log INFO "Set password for 'psna' user"
-    local password
-    password=$(prompt_password "Enter password for psna user")
-    echo "psna:$password" | chpasswd
-    log OK "Password set for 'psna'"
+        # Set password for new user
+        log INFO "Set password for 'psna' user"
+        local password
+        password=$(prompt_password "Enter password for psna user")
+        echo "psna:$password" | chpasswd
+        log OK "Password set for 'psna'"
+    fi
 
     # Create nectarcollector service user
     if id "nectarcollector" &>/dev/null; then
-        log INFO "Service user 'nectarcollector' already exists"
+        log OK "Service user 'nectarcollector' already exists"
     else
         log INFO "Creating service user 'nectarcollector'"
         useradd -r -s /usr/sbin/nologin -G dialout nectarcollector
@@ -249,7 +264,7 @@ phase_users() {
 
     # Create nats service user
     if id "nats" &>/dev/null; then
-        log INFO "Service user 'nats' already exists"
+        log OK "Service user 'nats' already exists"
     else
         log INFO "Creating service user 'nats'"
         useradd -r -s /usr/sbin/nologin nats
@@ -266,51 +281,58 @@ phase_tailscale() {
 
     # Install Tailscale
     if command -v tailscale &>/dev/null; then
-        log INFO "Tailscale already installed"
+        log OK "Tailscale already installed"
     else
         log INFO "Installing Tailscale..."
         curl -fsSL https://tailscale.com/install.sh | sh
         log OK "Tailscale installed"
     fi
 
-    # Authenticate
-    log INFO "Starting Tailscale authentication"
-    echo
-    echo -e "${BOLD}${CYAN}┌────────────────────────────────────────────────────────────┐${NC}"
-    echo -e "${BOLD}${CYAN}│  TAILSCALE AUTHENTICATION                                  │${NC}"
-    echo -e "${BOLD}${CYAN}│                                                            │${NC}"
-    echo -e "${BOLD}${CYAN}│  A browser link will appear below.                         │${NC}"
-    echo -e "${BOLD}${CYAN}│  Open it on another device to authenticate this machine.   │${NC}"
-    echo -e "${BOLD}${CYAN}└────────────────────────────────────────────────────────────┘${NC}"
-    echo
-
-    tailscale up --ssh --hostname="$(hostname)"
-
-    # Verify connection
-    sleep 3
+    # Check if already connected
     if tailscale status &>/dev/null; then
         local ts_ip
         ts_ip=$(tailscale ip -4 2>/dev/null || echo "unknown")
-        log OK "Tailscale connected: $ts_ip"
+        log OK "Tailscale already connected: $ts_ip"
     else
-        die "Tailscale failed to connect"
-    fi
+        # Authenticate
+        log INFO "Starting Tailscale authentication"
+        echo
+        echo -e "${BOLD}${CYAN}┌────────────────────────────────────────────────────────────┐${NC}"
+        echo -e "${BOLD}${CYAN}│  TAILSCALE AUTHENTICATION                                  │${NC}"
+        echo -e "${BOLD}${CYAN}│                                                            │${NC}"
+        echo -e "${BOLD}${CYAN}│  A browser link will appear below.                         │${NC}"
+        echo -e "${BOLD}${CYAN}│  Open it on another device to authenticate this machine.   │${NC}"
+        echo -e "${BOLD}${CYAN}└────────────────────────────────────────────────────────────┘${NC}"
+        echo
 
-    # Test Tailscale SSH
-    log INFO "Tailscale SSH is enabled"
-    echo
-    echo -e "${BOLD}${GREEN}┌────────────────────────────────────────────────────────────┐${NC}"
-    echo -e "${BOLD}${GREEN}│  TAILSCALE SSH READY                                       │${NC}"
-    echo -e "${BOLD}${GREEN}│                                                            │${NC}"
-    echo -e "${BOLD}${GREEN}│  You can now SSH via Tailscale:                            │${NC}"
-    echo -e "${BOLD}${GREEN}│  ssh psna@$(hostname)                                      ${NC}"
-    echo -e "${BOLD}${GREEN}│                                                            │${NC}"
-    echo -e "${BOLD}${GREEN}│  Test this connection NOW before proceeding!               │${NC}"
-    echo -e "${BOLD}${GREEN}└────────────────────────────────────────────────────────────┘${NC}"
-    echo
+        tailscale up --ssh --hostname="$(hostname)"
 
-    if ! confirm "Have you verified Tailscale SSH access works?"; then
-        die "Please verify Tailscale SSH before continuing"
+        # Verify connection
+        sleep 3
+        if tailscale status &>/dev/null; then
+            local ts_ip
+            ts_ip=$(tailscale ip -4 2>/dev/null || echo "unknown")
+            log OK "Tailscale connected: $ts_ip"
+        else
+            die "Tailscale failed to connect"
+        fi
+
+        # Test Tailscale SSH
+        log INFO "Tailscale SSH is enabled"
+        echo
+        echo -e "${BOLD}${GREEN}┌────────────────────────────────────────────────────────────┐${NC}"
+        echo -e "${BOLD}${GREEN}│  TAILSCALE SSH READY                                       │${NC}"
+        echo -e "${BOLD}${GREEN}│                                                            │${NC}"
+        echo -e "${BOLD}${GREEN}│  You can now SSH via Tailscale:                            │${NC}"
+        echo -e "${BOLD}${GREEN}│  ssh psna@$(hostname)                                      ${NC}"
+        echo -e "${BOLD}${GREEN}│                                                            │${NC}"
+        echo -e "${BOLD}${GREEN}│  Test this connection NOW before proceeding!               │${NC}"
+        echo -e "${BOLD}${GREEN}└────────────────────────────────────────────────────────────┘${NC}"
+        echo
+
+        if ! confirm "Have you verified Tailscale SSH access works?"; then
+            die "Please verify Tailscale SSH before continuing"
+        fi
     fi
 }
 
@@ -321,25 +343,47 @@ phase_tailscale() {
 phase_ssh_lockdown() {
     log PHASE "PHASE 4: SSH Lockdown"
 
-    # Backup original config
-    cp /etc/ssh/sshd_config /etc/ssh/sshd_config.backup.$(date +%Y%m%d)
-    log OK "Backed up sshd_config"
+    # Check if OpenSSH is installed
+    if [[ -f /etc/ssh/sshd_config ]]; then
+        # Traditional OpenSSH is installed - lock it down
+        log INFO "OpenSSH detected, hardening configuration"
 
-    # Disable root SSH login
-    log INFO "Disabling root SSH login"
-    sed -i 's/^#*PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
+        # Backup original config
+        cp /etc/ssh/sshd_config /etc/ssh/sshd_config.backup.$(date +%Y%m%d)
+        log OK "Backed up sshd_config"
 
-    # Ensure password auth is enabled (fallback if Tailscale fails)
-    sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
+        # Disable root SSH login
+        sed -i 's/^#*PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
 
-    # Restart SSH
-    systemctl restart sshd
-    log OK "SSH hardened (root disabled, password auth enabled for psna)"
+        # Disable password auth (Tailscale SSH handles auth)
+        sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
 
-    # Ensure root can still login via serial console
-    if ! grep -q "ttyS0" /etc/securetty 2>/dev/null; then
-        echo "ttyS0" >> /etc/securetty
-        log OK "Root login enabled on serial console (ttyS0)"
+        # Only listen on Tailscale interface (optional extra hardening)
+        # This prevents SSH access from public internet entirely
+        local ts_ip
+        ts_ip=$(tailscale ip -4 2>/dev/null || echo "")
+        if [[ -n "$ts_ip" ]]; then
+            if ! grep -q "^ListenAddress" /etc/ssh/sshd_config; then
+                echo "ListenAddress $ts_ip" >> /etc/ssh/sshd_config
+                log OK "SSH restricted to Tailscale IP only ($ts_ip)"
+            fi
+        fi
+
+        # Restart SSH
+        systemctl restart sshd
+        log OK "OpenSSH hardened"
+    else
+        # No OpenSSH - using Tailscale SSH only (cleanest setup!)
+        log OK "No OpenSSH installed - using Tailscale SSH exclusively"
+        log OK "This is the recommended secure configuration"
+    fi
+
+    # Ensure root can still login via serial console (emergency access)
+    if [[ -f /etc/securetty ]]; then
+        if ! grep -q "ttyS0" /etc/securetty; then
+            echo "ttyS0" >> /etc/securetty
+            log OK "Root login enabled on serial console (ttyS0)"
+        fi
     fi
 }
 
@@ -401,11 +445,14 @@ EOF
 phase_go() {
     log PHASE "PHASE 6: Install Go $GO_VERSION"
 
-    if command -v go &>/dev/null; then
+    # Check if correct version already installed
+    if command -v /usr/local/go/bin/go &>/dev/null; then
         local current_version
-        current_version=$(go version | awk '{print $3}' | sed 's/go//')
+        current_version=$(/usr/local/go/bin/go version | awk '{print $3}' | sed 's/go//')
         if [[ "$current_version" == "$GO_VERSION" ]]; then
             log OK "Go $GO_VERSION already installed"
+            # Ensure PATH is set
+            export PATH=$PATH:/usr/local/go/bin
             return 0
         fi
         log INFO "Upgrading Go from $current_version to $GO_VERSION"
@@ -449,33 +496,61 @@ EOF
 phase_nats() {
     log PHASE "PHASE 7: Install NATS Server $NATS_VERSION"
 
-    # Download NATS server
-    log INFO "Downloading NATS server..."
+    # Check if NATS already installed and running
+    if command -v nats-server &>/dev/null && systemctl is-active --quiet nats-server 2>/dev/null; then
+        log OK "NATS server already installed and running"
+        return 0
+    fi
+
+    # Determine architecture once for all downloads
     local arch
     arch=$(dpkg --print-architecture)
 
-    wget -q "https://github.com/nats-io/nats-server/releases/download/v${NATS_VERSION}/nats-server-v${NATS_VERSION}-linux-${arch}.tar.gz" -O /tmp/nats.tar.gz
+    # Download NATS server if not present
+    if [[ ! -f /usr/local/bin/nats-server ]]; then
+        log INFO "Downloading NATS server..."
 
-    tar -xzf /tmp/nats.tar.gz -C /tmp
-    mv "/tmp/nats-server-v${NATS_VERSION}-linux-${arch}/nats-server" /usr/local/bin/
-    chmod +x /usr/local/bin/nats-server
-    rm -rf /tmp/nats*
+        wget -q "https://github.com/nats-io/nats-server/releases/download/v${NATS_VERSION}/nats-server-v${NATS_VERSION}-linux-${arch}.tar.gz" -O /tmp/nats.tar.gz
 
-    log OK "NATS server binary installed"
+        tar -xzf /tmp/nats.tar.gz -C /tmp
+        mv "/tmp/nats-server-v${NATS_VERSION}-linux-${arch}/nats-server" /usr/local/bin/
+        chmod +x /usr/local/bin/nats-server
+        rm -rf /tmp/nats*
 
-    # Create directories
+        log OK "NATS server binary installed"
+    else
+        log OK "NATS server binary already present"
+    fi
+
+    # Install NATS CLI
+    if command -v nats &>/dev/null; then
+        log OK "NATS CLI already installed"
+    else
+        log INFO "Installing NATS CLI v${NATS_CLI_VERSION}..."
+        wget -q "https://github.com/nats-io/natscli/releases/download/v${NATS_CLI_VERSION}/nats-${NATS_CLI_VERSION}-linux-${arch}.zip" -O /tmp/nats-cli.zip
+        unzip -q /tmp/nats-cli.zip -d /tmp
+        install -m 755 "/tmp/nats-${NATS_CLI_VERSION}-linux-${arch}/nats" /usr/local/bin/nats
+        rm -rf "/tmp/nats-${NATS_CLI_VERSION}-linux-${arch}" /tmp/nats-cli.zip
+        log OK "NATS CLI installed"
+    fi
+
+    # Create directories (idempotent)
     mkdir -p /etc/nectarcollector
     mkdir -p /var/lib/nectarcollector/nats
     mkdir -p /var/log/nectarcollector
     chown -R nats:nats /var/lib/nectarcollector/nats
+    # Log dir needs to be writable by both nats and nectarcollector users
+    chown root:root /var/log/nectarcollector
+    chmod 777 /var/log/nectarcollector
 
     # Create NATS config
     log INFO "Creating NATS configuration..."
     cat > /etc/nectarcollector/nats-server.conf << 'EOF'
 # NATS Server Configuration for NectarCollector
-# Generated by setup.sh
+# Secured: localhost only - no external network access
 
-port: 4222
+# Bind to localhost only for security
+listen: 127.0.0.1:4222
 server_name: nectarcollector
 
 # Maximum payload (CDR lines are small)
@@ -537,6 +612,50 @@ EOF
         journalctl -u nats-server -n 20 --no-pager
         die "NATS server installation failed"
     fi
+
+    # Create JetStream streams
+    # Health stream: 5GB, 30-day TTL (small heartbeat messages)
+    # CDR stream: 50GB, NO TTL (durable buffer until consumed)
+    log INFO "Creating JetStream streams..."
+
+    # Health stream
+    if nats stream info health &>/dev/null; then
+        log OK "Health stream already exists"
+    else
+        nats stream add health \
+            --subjects "*.health.>" \
+            --retention limits \
+            --storage file \
+            --max-age 30d \
+            --max-bytes 5368709120 \
+            --max-msg-size 8192 \
+            --discard old \
+            --replicas 1 \
+            --dupe-window 1m \
+            --no-deny-delete \
+            --no-deny-purge \
+            --defaults 2>&1 || true
+        log OK "Health stream created (5GB, 30-day TTL)"
+    fi
+
+    # CDR stream - captures all CDR data on this box
+    if nats stream info cdr &>/dev/null; then
+        log OK "CDR stream already exists"
+    else
+        nats stream add cdr \
+            --subjects "*.cdr.>" \
+            --retention limits \
+            --storage file \
+            --max-bytes 53687091200 \
+            --max-msg-size 8192 \
+            --discard old \
+            --replicas 1 \
+            --dupe-window 2m \
+            --no-deny-delete \
+            --no-deny-purge \
+            --defaults 2>&1 || true
+        log OK "CDR stream created (50GB, NO TTL - durable)"
+    fi
 }
 
 #-------------------------------------------------------------------------------
@@ -546,41 +665,45 @@ EOF
 phase_nectarcollector() {
     log PHASE "PHASE 8: Install NectarCollector"
 
-    # Check for pre-built binary
-    local binary_path=""
-    for path in \
-        "${SCRIPT_DIR}/../nectarcollector" \
-        "${SCRIPT_DIR}/../../nectarcollector" \
-        "/tmp/nectarcollector" \
-        "./nectarcollector"; do
-        if [[ -f "$path" ]] && [[ -x "$path" ]]; then
-            binary_path="$path"
-            break
-        fi
-    done
-
-    if [[ -n "$binary_path" ]]; then
-        log INFO "Installing pre-built binary from: $binary_path"
-        cp "$binary_path" /usr/local/bin/nectarcollector
-        chmod +x /usr/local/bin/nectarcollector
+    # Check if already installed
+    if [[ -f /usr/local/bin/nectarcollector ]]; then
+        log OK "NectarCollector binary already installed"
     else
-        log WARN "No pre-built binary found"
-        if confirm "Build from source?"; then
-            if [[ -d "${SCRIPT_DIR}/../.." ]] && [[ -f "${SCRIPT_DIR}/../../go.mod" ]]; then
-                log INFO "Building from source..."
-                cd "${SCRIPT_DIR}/../.."
-                /usr/local/go/bin/go build -o /usr/local/bin/nectarcollector
-                log OK "Built from source"
-            else
-                die "Source code not found"
+        # Check for pre-built binary
+        local binary_path=""
+        for path in \
+            "${SCRIPT_DIR}/../nectarcollector" \
+            "${SCRIPT_DIR}/../../nectarcollector" \
+            "/tmp/nectarcollector" \
+            "./nectarcollector"; do
+            if [[ -f "$path" ]] && [[ -x "$path" ]]; then
+                binary_path="$path"
+                break
             fi
-        else
-            log WARN "Skipping NectarCollector binary installation"
-            return 0
-        fi
-    fi
+        done
 
-    log OK "NectarCollector binary installed"
+        if [[ -n "$binary_path" ]]; then
+            log INFO "Installing pre-built binary from: $binary_path"
+            install -m 755 "$binary_path" /usr/local/bin/nectarcollector
+        else
+            log WARN "No pre-built binary found"
+            if confirm "Build from source?"; then
+                if [[ -d "${SCRIPT_DIR}/../.." ]] && [[ -f "${SCRIPT_DIR}/../../go.mod" ]]; then
+                    log INFO "Building from source..."
+                    cd "${SCRIPT_DIR}/../.."
+                    /usr/local/go/bin/go build -o /usr/local/bin/nectarcollector
+                    log OK "Built from source"
+                else
+                    die "Source code not found"
+                fi
+            else
+                log WARN "Skipping NectarCollector binary installation"
+                return 0
+            fi
+        fi
+
+        log OK "NectarCollector binary installed"
+    fi
 
     # Create configuration
     phase_nectarcollector_config
@@ -618,7 +741,108 @@ EOF
     systemctl daemon-reload
     systemctl enable nectarcollector
 
-    log OK "NectarCollector service installed (not started - configure serial ports first)"
+    # Start if config has enabled ports
+    if jq -e '.ports[] | select(.enabled == true)' /etc/nectarcollector/config.json &>/dev/null; then
+        log INFO "Config has enabled ports, starting NectarCollector..."
+        systemctl start nectarcollector
+        sleep 2
+        if systemctl is-active --quiet nectarcollector; then
+            log OK "NectarCollector running"
+        else
+            log WARN "NectarCollector failed to start - check config and serial ports"
+            journalctl -u nectarcollector -n 10 --no-pager
+        fi
+    else
+        log OK "NectarCollector service installed (not started - no enabled ports in config)"
+    fi
+}
+
+# Generate full NectarCollector config from simple setup config
+generate_config_from_simple() {
+    local setup_config="$1"
+
+    local hostname fips_code vendor county dashboard_user dashboard_pass
+    hostname=$(jq -r '.hostname // ""' "$setup_config")
+    fips_code=$(jq -r '.fips_code // "0000000000"' "$setup_config")
+    vendor=$(jq -r '.vendor // "unknown"' "$setup_config")
+    county=$(jq -r '.county // "unknown"' "$setup_config")
+    dashboard_user=$(jq -r '.dashboard_user // ""' "$setup_config")
+    dashboard_pass=$(jq -r '.dashboard_pass // ""' "$setup_config")
+
+    # Get state prefix from hostname (psna-XX-...)
+    local state_prefix
+    state_prefix=$(echo "$hostname" | sed -n 's/psna-\([a-z]*\)-.*/\1/p')
+    state_prefix="${state_prefix:-xx}"
+
+    # Build ports array from simple list
+    local ports_json="[]"
+    local designation=1
+    for port in $(jq -r '.ports[]' "$setup_config"); do
+        # Add /dev/ prefix if not present
+        [[ "$port" != /dev/* ]] && port="/dev/$port"
+
+        local port_json
+        port_json=$(jq -n \
+            --arg dev "$port" \
+            --arg a_des "A$designation" \
+            --arg fips "$fips_code" \
+            --arg vendor "$vendor" \
+            --arg county "$county" \
+            '{
+                device: $dev,
+                a_designation: $a_des,
+                fips_code: $fips,
+                vendor: $vendor,
+                county: $county,
+                baud_rate: 0,
+                enabled: true,
+                description: "CDR feed"
+            }')
+        ports_json=$(echo "$ports_json" | jq --argjson port "$port_json" '. += [$port]')
+        ((designation++))
+    done
+
+    # Generate full config
+    cat > /etc/nectarcollector/config.json << EOF
+{
+  "app": {
+    "name": "NectarCollector",
+    "instance_id": "${hostname}",
+    "fips_code": "${fips_code}"
+  },
+  "ports": ${ports_json},
+  "detection": {
+    "baud_rates": [9600, 19200, 38400, 57600, 115200, 4800, 2400, 1200, 300],
+    "detection_timeout_sec": 5,
+    "min_bytes_for_valid": 50
+  },
+  "nats": {
+    "url": "nats://localhost:4222",
+    "subject_prefix": "${state_prefix}.cdr",
+    "max_reconnects": -1,
+    "reconnect_wait_sec": 5
+  },
+  "logging": {
+    "base_path": "/var/log/nectarcollector",
+    "max_size_mb": 50,
+    "max_backups": 10,
+    "compress": true,
+    "level": "info"
+  },
+  "monitoring": {
+    "port": 8080,
+    "username": "${dashboard_user}",
+    "password": "${dashboard_pass}"
+  },
+  "recovery": {
+    "reconnect_delay_sec": 5,
+    "max_reconnect_delay_sec": 300,
+    "exponential_backoff": true
+  }
+}
+EOF
+
+    log OK "Generated config with ${designation-1} port(s)"
 }
 
 phase_nectarcollector_config() {
@@ -628,8 +852,23 @@ phase_nectarcollector_config() {
 
     # Check for config file
     if [[ -n "$CONFIG_FILE" ]] && [[ -f "$CONFIG_FILE" ]]; then
-        log INFO "Installing configuration from: $CONFIG_FILE"
-        cp "$CONFIG_FILE" /etc/nectarcollector/config.json
+        # Check config format: simple (has "ports" array of strings) or full (has "nectarcollector_config" or "app")
+        if jq -e '.ports[0] | type == "string"' "$CONFIG_FILE" &>/dev/null; then
+            # Simple format - generate full config
+            log INFO "Generating NectarCollector config from simple setup config"
+            generate_config_from_simple "$CONFIG_FILE"
+        elif jq -e '.nectarcollector_config' "$CONFIG_FILE" &>/dev/null; then
+            # Legacy nested format
+            log INFO "Extracting NectarCollector config from nested setup config"
+            jq '.nectarcollector_config' "$CONFIG_FILE" > /etc/nectarcollector/config.json
+        elif jq -e '.app' "$CONFIG_FILE" &>/dev/null; then
+            # Direct full config
+            log INFO "Installing full configuration from: $CONFIG_FILE"
+            cp "$CONFIG_FILE" /etc/nectarcollector/config.json
+        else
+            log WARN "Unknown config format, treating as full config"
+            cp "$CONFIG_FILE" /etc/nectarcollector/config.json
+        fi
 
         # Update instance_id if needed
         if [[ -n "$instance_id" ]]; then
@@ -738,9 +977,12 @@ phase_network_docs() {
 EOF
     echo -e "${NC}"
 
+    # Collect MAC addresses for summary
+    local mac_summary=""
+
     # Get network interface info
     local iface
-    for iface in $(ls /sys/class/net | grep -v lo); do
+    for iface in $(ls /sys/class/net | grep -v lo | grep -v tailscale); do
         local mac ip state driver
         mac=$(cat "/sys/class/net/$iface/address" 2>/dev/null || echo "unknown")
         ip=$(ip -4 addr show "$iface" 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -1 || echo "no ip")
@@ -753,6 +995,9 @@ EOF
         echo -e "${CYAN}    ║${NC}    ├─ State:  $state"
         echo -e "${CYAN}    ║${NC}    └─ Driver: $driver"
         echo -e "${CYAN}    ║${NC}"
+
+        # Build MAC summary
+        mac_summary="${mac_summary}${iface}: ${mac}\n"
     done
 
     # Tailscale info
@@ -770,20 +1015,38 @@ EOF
 EOF
     echo -e "${NC}"
 
+    # Print MAC address summary box for easy documentation
+    echo
+    echo -e "${BOLD}${GREEN}┌────────────────────────────────────────────────────────────┐${NC}"
+    echo -e "${BOLD}${GREEN}│  MAC ADDRESSES - COPY FOR DOCUMENTATION                    │${NC}"
+    echo -e "${BOLD}${GREEN}├────────────────────────────────────────────────────────────┤${NC}"
+    echo -e "${BOLD}${GREEN}│${NC}  Hostname: ${BOLD}$(hostname)${NC}"
+    for iface in $(ls /sys/class/net | grep -v lo | grep -v tailscale); do
+        local mac
+        mac=$(cat "/sys/class/net/$iface/address" 2>/dev/null || echo "unknown")
+        printf "${BOLD}${GREEN}│${NC}  %-10s ${BOLD}%s${NC}\n" "$iface:" "$mac"
+    done
+    echo -e "${BOLD}${GREEN}│${NC}  Tailscale: ${BOLD}$ts_ip${NC}"
+    echo -e "${BOLD}${GREEN}└────────────────────────────────────────────────────────────┘${NC}"
+    echo
+
     # Save to file
     {
         echo "# Network Configuration"
         echo "# Generated: $(date)"
         echo "# Hostname: $(hostname)"
         echo ""
-        echo "## Ethernet Interfaces"
+        echo "## MAC Addresses (for DHCP reservations / documentation)"
         for iface in $(ls /sys/class/net | grep -v lo | grep -v tailscale); do
-            echo "- $iface: $(cat /sys/class/net/$iface/address 2>/dev/null)"
+            printf "%-12s %s\n" "$iface:" "$(cat /sys/class/net/$iface/address 2>/dev/null)"
         done
         echo ""
         echo "## Tailscale"
-        echo "- IP: $ts_ip"
-        echo "- Hostname: $ts_hostname"
+        echo "IP: $ts_ip"
+        echo "Hostname: $ts_hostname"
+        echo ""
+        echo "## Full Interface Details"
+        ip addr show
     } > /etc/nectarcollector/network-info.txt
 
     log OK "Network info saved to /etc/nectarcollector/network-info.txt"
@@ -842,8 +1105,10 @@ EOF
 EOF
     echo -e "${NC}"
 
-    echo -e "${CYAN}    ℹ${NC}  COM1 (ttyS0) reserved for console access"
-    echo -e "${CYAN}    ℹ${NC}  Connect via: ${BOLD}screen /dev/ttyUSB0 115200${NC}"
+    echo -e "${CYAN}    ℹ${NC}  COM1 (ttyS0) is reserved for emergency console access"
+    echo -e "${CYAN}    ℹ${NC}  To connect via serial console from another machine:"
+    echo -e "${CYAN}    ℹ${NC}    Linux:  ${BOLD}screen /dev/ttyUSB0 115200${NC}"
+    echo -e "${CYAN}    ℹ${NC}    macOS:  ${BOLD}screen /dev/cu.usbserial-* 115200${NC}"
     echo
 }
 
@@ -917,6 +1182,15 @@ EOF
 
     log OK "The hive is ready! Happy collecting!"
     echo "Completed: $(date)" >> "$LOG_FILE"
+
+    # Offer to reboot
+    echo
+    if confirm "Reboot now to apply all changes (recommended)?"; then
+        log INFO "Rebooting..."
+        reboot
+    else
+        log WARN "Remember to reboot before putting into production"
+    fi
 }
 
 #-------------------------------------------------------------------------------
@@ -952,12 +1226,13 @@ EOF
 
     if [[ -n "$CONFIG_FILE" ]]; then
         if [[ -f "$CONFIG_FILE" ]]; then
-            echo -e "    ${GREEN}▶${NC} Using config file: $CONFIG_FILE"
+            echo -e "    ${GREEN}▶${NC} Using config: $CONFIG_FILE"
         else
             die "Config file not found: $CONFIG_FILE"
         fi
     else
-        echo -e "    ${YELLOW}▶${NC} No config file specified (interactive mode)"
+        echo -e "    ${YELLOW}▶${NC} No config file found (interactive mode)"
+        echo -e "    ${CYAN}ℹ${NC}  Place setup-config.json in same directory to auto-load"
     fi
     echo
 

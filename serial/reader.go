@@ -298,23 +298,42 @@ func (r *RealReader) Reconfigure(baudRate int, useFlowControl bool) error {
 	return r.open()
 }
 
+// ErrReadTimeout is returned when a read times out (0 bytes returned)
+// This allows callers to distinguish between timeout and other errors
+var ErrReadTimeout = fmt.Errorf("serial read timeout")
+
+// ErrLineStall is returned when data is being read but no lines complete
+// This indicates wrong baud rate corrupting line terminators
+var ErrLineStall = fmt.Errorf("line stall - data flowing but no lines completing")
+
 // ReaderWithStats wraps a Reader to track statistics
 type ReaderWithStats struct {
-	reader    Reader
-	bytesRead int64
-	linesRead int64
-	errors    int64
-	mu        sync.RWMutex
+	reader        Reader
+	bytesRead     int64
+	linesRead     int64
+	errors        int64
+	lastLineTime  time.Time     // Time of last successful line read
+	lastLineBytes int64         // Bytes at last successful line read
+	stallTimeout  time.Duration // How long without a line before stall
+	mu            sync.RWMutex
 }
+
+// DefaultStallTimeout is how long we wait without a line before declaring a stall.
+// Set to 0 to disable stall detection entirely (recommended for slow/sporadic sources
+// like PSAP CDR feeds that may go hours without activity during quiet periods).
+const DefaultStallTimeout = 0 // Disabled - PSAPs can have hours between calls
 
 // NewReaderWithStats creates a new ReaderWithStats
 func NewReaderWithStats(reader Reader) *ReaderWithStats {
 	return &ReaderWithStats{
-		reader: reader,
+		reader:       reader,
+		lastLineTime: time.Now(),
+		stallTimeout: DefaultStallTimeout,
 	}
 }
 
-// Read implements io.Reader and tracks bytes read
+// Read implements io.Reader and tracks bytes read.
+// Returns ErrLineStall if data is being read but no lines complete for stallTimeout.
 func (r *ReaderWithStats) Read(p []byte) (n int, err error) {
 	n, err = r.reader.Read(p)
 
@@ -322,6 +341,16 @@ func (r *ReaderWithStats) Read(p []byte) (n int, err error) {
 	r.bytesRead += int64(n)
 	if err != nil && err != io.EOF {
 		r.errors++
+	}
+
+	// Check for stall: bytes increasing but no lines for too long
+	// This detects wrong baud rate causing corrupted line terminators
+	if n > 0 && r.stallTimeout > 0 {
+		timeSinceLastLine := time.Since(r.lastLineTime)
+		if timeSinceLastLine > r.stallTimeout && r.bytesRead > r.lastLineBytes {
+			r.mu.Unlock()
+			return n, ErrLineStall
+		}
 	}
 	r.mu.Unlock()
 
@@ -363,10 +392,12 @@ func (r *ReaderWithStats) GetModemStatus() (*ModemStatus, error) {
 	return r.reader.GetModemStatus()
 }
 
-// LineRead increments the line counter
+// LineRead increments the line counter and resets stall detection
 func (r *ReaderWithStats) LineRead() {
 	r.mu.Lock()
 	r.linesRead++
+	r.lastLineTime = time.Now()
+	r.lastLineBytes = r.bytesRead
 	r.mu.Unlock()
 }
 

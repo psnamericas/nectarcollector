@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"time"
 
 	"nectarcollector/config"
 	"nectarcollector/output"
@@ -12,11 +13,12 @@ import (
 
 // Manager manages multiple capture channels
 type Manager struct {
-	config   *config.Config
-	channels []*Channel
-	natsConn *output.NATSConnection
-	logger   *slog.Logger
-	mu       sync.RWMutex
+	config          *config.Config
+	channels        []*Channel
+	natsConn        *output.NATSConnection
+	healthPublisher *output.HealthPublisher
+	logger          *slog.Logger
+	mu              sync.RWMutex
 }
 
 // NewManager creates a new capture manager
@@ -86,6 +88,19 @@ func (m *Manager) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to start any capture channels")
 	}
 
+	// Start health publisher
+	healthSubject := output.BuildHealthSubject(m.config.NATS.SubjectPrefix, m.config.App.InstanceID)
+	m.healthPublisher = output.NewHealthPublisher(&output.HealthPublisherConfig{
+		Conn:       m.natsConn.Conn(),
+		Subject:    healthSubject,
+		InstanceID: m.config.App.InstanceID,
+		FIPSCode:   m.config.App.FIPSCode,
+		Interval:   60 * time.Second,
+		Logger:     m.logger,
+		StatsFunc:  m.getHealthStats,
+	})
+	m.healthPublisher.Start()
+
 	m.logger.Info("Capture manager started", "channels", startedCount)
 	return nil
 }
@@ -93,6 +108,11 @@ func (m *Manager) Start(ctx context.Context) error {
 // Stop gracefully stops all capture channels
 func (m *Manager) Stop() {
 	m.logger.Info("Stopping capture manager")
+
+	// Stop health publisher first (so it can send final heartbeat)
+	if m.healthPublisher != nil {
+		m.healthPublisher.Stop()
+	}
 
 	m.mu.RLock()
 	channels := make([]*Channel, len(m.channels))
@@ -215,5 +235,43 @@ func (m *Manager) GetAllStats() map[string]interface{} {
 		"instance_id":    m.config.App.InstanceID,
 		"nats_connected": m.NATSConnected(),
 		"channels":       channelInfos,
+	}
+}
+
+// getHealthStats returns health stats for the health publisher
+func (m *Manager) getHealthStats() output.HealthStats {
+	m.mu.RLock()
+	channels := make([]*Channel, len(m.channels))
+	copy(channels, m.channels)
+	m.mu.RUnlock()
+
+	now := time.Now()
+	channelHealth := make([]output.ChannelHealth, 0, len(channels))
+
+	for _, ch := range channels {
+		stats := ch.Stats()
+
+		// Calculate seconds since last line (-1 if never)
+		var lastLineAgo int64 = -1
+		if !stats.LastLineTime.IsZero() {
+			lastLineAgo = int64(now.Sub(stats.LastLineTime).Seconds())
+		}
+
+		channelHealth = append(channelHealth, output.ChannelHealth{
+			Device:       ch.Device(),
+			ADesignation: ch.config.ADesignation,
+			State:        ch.State().String(),
+			BaudRate:     stats.DetectedBaud,
+			Reconnects:   stats.Reconnects,
+			BytesRead:    stats.BytesRead,
+			LinesRead:    stats.LinesRead,
+			Errors:       stats.Errors,
+			LastLineAgo:  lastLineAgo,
+		})
+	}
+
+	return output.HealthStats{
+		NATSConnected: m.NATSConnected(),
+		Channels:      channelHealth,
 	}
 }
