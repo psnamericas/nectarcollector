@@ -37,6 +37,19 @@ const (
 	MaxLineBufferSize = 1024 * 1024 // 1MB
 )
 
+// Data quality monitoring constants - detects baud rate drift
+const (
+	// QualityCheckWindow is the number of bytes to sample for quality check
+	QualityCheckWindow = 500
+
+	// QualityThreshold is minimum valid ASCII ratio before triggering re-detection
+	// This is slightly lower than detection threshold to avoid flapping
+	QualityThreshold = 0.70
+
+	// GarbledLineThreshold is number of consecutive garbled lines before re-detection
+	GarbledLineThreshold = 5
+)
+
 func (s ChannelState) String() string {
 	switch s {
 	case StateDetecting:
@@ -56,6 +69,21 @@ func (s ChannelState) String() string {
 	}
 }
 
+// ModemSignals represents the state of RS-232 modem control lines
+// These can indicate whether a device is physically connected
+type ModemSignals struct {
+	CTS bool `json:"cts"` // Clear To Send - remote ready to receive
+	DSR bool `json:"dsr"` // Data Set Ready - remote device powered on
+	DCD bool `json:"dcd"` // Data Carrier Detect - remote device present
+	RI  bool `json:"ri"`  // Ring Indicator
+}
+
+// Connected returns true if the modem signals indicate a device is connected
+// DCD (Data Carrier Detect) is the primary indicator of a connected device
+func (m ModemSignals) Connected() bool {
+	return m.DCD || m.DSR
+}
+
 // ChannelStats tracks statistics for a capture channel
 type ChannelStats struct {
 	BytesRead    int64
@@ -66,6 +94,7 @@ type ChannelStats struct {
 	DetectedBaud int
 	DetectedFlow bool
 	StartTime    time.Time
+	Signals      *ModemSignals `json:"signals,omitempty"` // RS-232 modem signals (nil if unavailable)
 }
 
 // NATSChecker provides a way to check NATS connection status
@@ -91,6 +120,7 @@ type Channel struct {
 
 	stats               ChannelStats
 	consecutiveFailures int64 // For exponential backoff calculation, reset on success
+	garbledLineCount    int   // Consecutive lines with low ASCII validity
 	statsMutex          sync.RWMutex
 
 	stopCh chan struct{}
@@ -266,6 +296,12 @@ func (c *Channel) runCaptureSession(ctx context.Context) error {
 	// Phase 2: Open port
 	c.setState(StateRunning)
 
+	// Always record the baud rate being used (whether configured or detected)
+	c.statsMutex.Lock()
+	c.stats.DetectedBaud = baudRate
+	c.stats.DetectedFlow = useFlowControl
+	c.statsMutex.Unlock()
+
 	// Build serial config from port configuration
 	serialConfig := serial.SerialConfig{
 		BaudRate:       baudRate,
@@ -296,9 +332,10 @@ func (c *Channel) runCaptureSession(ctx context.Context) error {
 		// Non-fatal - continue with detection timeout
 	}
 
-	// Reset consecutive failure count on successful connection
+	// Reset failure counters on successful connection
 	c.statsMutex.Lock()
 	c.consecutiveFailures = 0
+	c.garbledLineCount = 0
 	c.statsMutex.Unlock()
 
 	// Phase 3: Read loop
@@ -342,14 +379,17 @@ func (c *Channel) readLoop(ctx context.Context) error {
 				return nil
 			}
 
+			// Check for line stall (bytes flowing but no lines completing)
+			// This is detected by ReaderWithStats when Read() is called
+			if err == serial.ErrLineStall {
+				c.logger.Warn("Line stall detected - triggering re-detection",
+					"device", c.config.Device)
+				return err
+			}
+
 			// Check if this is a timeout-related error
-			// With short read timeouts, the scanner may fail to find a newline
-			// before timeout. This is normal - we just check for shutdown and retry.
-			// Real errors (port disconnected, etc.) will persist across retries.
-			errStr := err.Error()
-			if isTimeoutError(errStr) {
-				// Timeout is normal with short read timeouts - just loop back
-				// and check shutdown signals
+			if isTimeoutError(err) {
+				// Timeout is normal - just loop back and check shutdown signals
 				continue
 			}
 
@@ -359,6 +399,12 @@ func (c *Channel) readLoop(ctx context.Context) error {
 		}
 
 		line := scanner.Text()
+
+		// Check data quality - detect baud rate drift
+		if !c.checkLineQuality(line) {
+			return errBaudRateDrift
+		}
+
 		c.processLine(line)
 	}
 }
@@ -396,16 +442,68 @@ func (c *Channel) waitForNATS(ctx context.Context) bool {
 	}
 }
 
-// isTimeoutError checks if an error message indicates a timeout
+// isTimeoutError checks if an error indicates a timeout
 // rather than a real serial port failure
-func isTimeoutError(errMsg string) bool {
-	// go.bug.st/serial returns 0 bytes on timeout, which can cause
-	// bufio.Scanner to return errors about incomplete tokens or no progress
+func isTimeoutError(err error) bool {
+	// Check for our explicit timeout error first
+	if err == serial.ErrReadTimeout {
+		return true
+	}
+
+	// Check error message for other timeout patterns
+	errMsg := err.Error()
 	return errMsg == "bufio.Scanner: token too long" ||
 		errMsg == "unexpected EOF" ||
+		errMsg == "serial read timeout" ||
 		// Some platforms may return these
 		errMsg == "i/o timeout" ||
 		errMsg == "resource temporarily unavailable"
+}
+
+// errBaudRateDrift is returned when data quality monitoring detects garbled data
+var errBaudRateDrift = fmt.Errorf("baud rate drift detected - data quality below threshold")
+
+// checkLineQuality checks if a line is valid ASCII and tracks garbled lines.
+// Returns true if quality is OK, false if re-detection should be triggered.
+func (c *Channel) checkLineQuality(line string) bool {
+	if len(line) == 0 {
+		return true // Empty lines are fine
+	}
+
+	// Count valid ASCII characters
+	validChars := 0
+	for i := 0; i < len(line); i++ {
+		b := line[i]
+		// Printable ASCII (space through tilde) + TAB
+		if (b >= 0x20 && b <= 0x7E) || b == 0x09 {
+			validChars++
+		}
+	}
+
+	ratio := float64(validChars) / float64(len(line))
+
+	c.statsMutex.Lock()
+	defer c.statsMutex.Unlock()
+
+	if ratio < QualityThreshold {
+		c.garbledLineCount++
+		if c.garbledLineCount >= GarbledLineThreshold {
+			c.logger.Warn("Data quality degraded - triggering re-detection",
+				"device", c.config.Device,
+				"validity_ratio", fmt.Sprintf("%.2f", ratio),
+				"garbled_lines", c.garbledLineCount)
+			return false
+		}
+		c.logger.Debug("Garbled line detected",
+			"device", c.config.Device,
+			"validity_ratio", fmt.Sprintf("%.2f", ratio),
+			"garbled_count", c.garbledLineCount)
+	} else {
+		// Good line - reset counter
+		c.garbledLineCount = 0
+	}
+
+	return true
 }
 
 // processLine processes a single line from the serial port
@@ -503,12 +601,61 @@ func (c *Channel) Stats() ChannelStats {
 		stats.BytesRead = bytesRead
 		stats.LinesRead = linesRead
 		stats.Errors = errors
+
+		// Get modem signals to show connection status
+		if modem, err := c.reader.GetModemStatus(); err == nil && modem != nil {
+			stats.Signals = &ModemSignals{
+				CTS: modem.CTS,
+				DSR: modem.DSR,
+				DCD: modem.DCD,
+				RI:  modem.RI,
+			}
+		}
+	} else {
+		// Reader not open - try to probe modem signals by briefly opening port
+		// This allows showing cable status even during detection/reconnection
+		stats.Signals = c.probeModemSignals()
 	}
 
 	return stats
 }
 
+// probeModemSignals briefly opens the port to check RS-232 signal levels
+// This is safe to call even when the port is being used by detection
+func (c *Channel) probeModemSignals() *ModemSignals {
+	reader, err := serial.NewRealReader(c.config.Device, 9600, false)
+	if err != nil {
+		return nil
+	}
+	defer reader.Close()
+
+	modem, err := reader.GetModemStatus()
+	if err != nil {
+		return nil
+	}
+
+	return &ModemSignals{
+		CTS: modem.CTS,
+		DSR: modem.DSR,
+		DCD: modem.DCD,
+		RI:  modem.RI,
+	}
+}
+
 // Device returns the device path
 func (c *Channel) Device() string {
 	return c.config.Device
+}
+
+// ADesignation returns the A-designation (A1-A16)
+func (c *Channel) ADesignation() string {
+	return c.config.ADesignation
+}
+
+// FIPSCode returns the FIPS code for this channel (port-specific or app-level)
+func (c *Channel) FIPSCode() string {
+	if c.config.FIPSCode != "" {
+		return c.config.FIPSCode
+	}
+	return c.appConfig.FIPSCode
 }

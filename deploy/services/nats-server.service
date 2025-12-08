@@ -1,22 +1,25 @@
 [Unit]
 Description=NATS Server for NectarCollector
+Documentation=https://docs.nats.io/
 After=network.target
 
 [Service]
 Type=simple
+User=nats
+Group=nats
 ExecStart=/usr/local/bin/nats-server -c /etc/nectarcollector/nats-server.conf
 ExecReload=/bin/kill -HUP $MAINPID
 Restart=always
 RestartSec=5
-User=nats
-Group=nats
 LimitNOFILE=65536
+StandardOutput=journal
+StandardError=journal
 
-# Hardening
+# Security hardening
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/var/lib/nectarcollector/nats
+ReadWritePaths=/var/lib/nectarcollector/nats /var/log/nectarcollector
 PrivateTmp=true
 
 [Install]

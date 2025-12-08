@@ -1,0 +1,9 @@
+{
+  "hostname": "psna-ne-southcentralpan-kearney-01",
+  "fips_code": "1314010001",
+  "vendor": "viper",
+  "county": "kearney",
+  "ports": ["ttyS2"],
+  "dashboard_user": "psna",
+  "dashboard_pass": "nectar2025"
+}

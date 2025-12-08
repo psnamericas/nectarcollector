@@ -180,8 +180,9 @@ func (c *Config) validateNATS() error {
 		return fmt.Errorf("subject_prefix is required")
 	}
 
-	if c.NATS.MaxReconnects < 0 {
-		return fmt.Errorf("max_reconnects must be non-negative, got: %d", c.NATS.MaxReconnects)
+	// -1 means unlimited reconnects (NATS client convention)
+	if c.NATS.MaxReconnects < -1 {
+		return fmt.Errorf("max_reconnects must be -1 (unlimited) or non-negative, got: %d", c.NATS.MaxReconnects)
 	}
 
 	if c.NATS.ReconnectWaitSec <= 0 {

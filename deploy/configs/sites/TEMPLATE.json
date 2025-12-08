@@ -1,0 +1,16 @@
+{
+  "_instructions": [
+    "1. Copy this file to: setup-psna-{state}-{site}-01.json",
+    "2. Fill in all fields (remove this _instructions block)",
+    "3. Push files: scp nectarcollector-linux setup.sh setup-*.json root@{ip}:/opt/nectarcollector/",
+    "4. Run setup: ssh -t root@{ip} '/opt/nectarcollector/setup.sh'",
+    "See deploy/DEPLOYMENT.md for full instructions"
+  ],
+  "hostname": "psna-{state}-{region}-{site}-01",
+  "fips_code": "0000000000",
+  "vendor": "vesta|intrado|motorola|zetron|viper",
+  "county": "countyname",
+  "ports": ["ttyS1"],
+  "dashboard_user": "psna",
+  "dashboard_pass": "CHANGE_ME"
+}

@@ -113,11 +113,17 @@ func (c *Config) setDefaults() {
 	}
 
 	// Detection defaults
+	// Prioritize common PSAP/CHE equipment baud rates:
+	// - 9600: Most common (Vesta, Viper, Positron default)
+	// - 19200: Second most common (some Viper configs)
+	// - 4800: Legacy equipment
+	// - 38400: Some newer Vesta installs
+	// Then fall back to other standard rates
 	if len(c.Detection.BaudRates) == 0 {
-		c.Detection.BaudRates = []int{300, 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200}
+		c.Detection.BaudRates = []int{9600, 19200, 4800, 38400, 115200, 57600, 2400, 1200, 300}
 	}
 	if c.Detection.DetectionTimeoutSec == 0 {
-		c.Detection.DetectionTimeoutSec = 5
+		c.Detection.DetectionTimeoutSec = 2 // 2 seconds per baud rate (was 5)
 	}
 	if c.Detection.MinBytesForValid == 0 {
 		c.Detection.MinBytesForValid = 50
@@ -163,10 +169,10 @@ func (c *Config) setDefaults() {
 
 	// Recovery defaults
 	if c.Recovery.ReconnectDelaySec == 0 {
-		c.Recovery.ReconnectDelaySec = 5
+		c.Recovery.ReconnectDelaySec = 1 // Fast initial retry
 	}
 	if c.Recovery.MaxReconnectDelaySec == 0 {
-		c.Recovery.MaxReconnectDelaySec = 300
+		c.Recovery.MaxReconnectDelaySec = 60 // Cap at 1 minute
 	}
 }
 
