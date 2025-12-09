@@ -21,6 +21,8 @@ import (
 	"nectarcollector/capture"
 	"nectarcollector/config"
 	"nectarcollector/serial"
+
+	"github.com/nats-io/nats.go"
 )
 
 // getInode extracts the inode number from file info (Unix only)
@@ -279,6 +281,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/system", s.handleSystem)
 	mux.HandleFunc("/api/feed", s.handleFeed)
 	mux.HandleFunc("/api/stream", s.handleSSE)
+	mux.HandleFunc("/api/events", s.handleEvents)
 
 	// Wrap with basic auth if configured
 	var handler http.Handler = mux
@@ -837,4 +840,96 @@ func tailFile(path string, n int) ([]string, error) {
 		result[i] = ring[(idx+i)%n]
 	}
 	return result, nil
+}
+
+// handleEvents returns recent events from the NATS events stream
+// Query params: count (default 50, max 200)
+func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	// Parse count parameter
+	countStr := r.URL.Query().Get("count")
+	count := 50
+	if countStr != "" {
+		if n, err := strconv.Atoi(countStr); err == nil && n > 0 {
+			count = n
+			if count > 200 {
+				count = 200
+			}
+		}
+	}
+
+	// Get NATS connection from manager
+	natsConn := s.manager.NATSConn()
+	if natsConn == nil || !natsConn.IsConnected() {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"events": []interface{}{},
+			"error":  "NATS not connected",
+		})
+		return
+	}
+
+	// Get JetStream context
+	js, err := natsConn.Conn().JetStream()
+	if err != nil {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"events": []interface{}{},
+			"error":  "JetStream not available",
+		})
+		return
+	}
+
+	// Get events stream info to find last sequence
+	streamInfo, err := js.StreamInfo("events")
+	if err != nil {
+		// Stream might not exist yet - return empty
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"events": []interface{}{},
+			"error":  "Events stream not found",
+		})
+		return
+	}
+
+	// Calculate start sequence for last N messages
+	lastSeq := streamInfo.State.LastSeq
+	startSeq := uint64(1)
+	if lastSeq > uint64(count) {
+		startSeq = lastSeq - uint64(count) + 1
+	}
+
+	// Create ephemeral pull consumer starting at calculated sequence
+	eventsSubject := s.manager.EventsSubject()
+	sub, err := js.PullSubscribe(
+		eventsSubject,
+		"", // ephemeral (no durable name)
+		nats.StartSequence(startSeq),
+		nats.BindStream("events"),
+	)
+	if err != nil {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"events": []interface{}{},
+			"error":  fmt.Sprintf("Failed to subscribe: %v", err),
+		})
+		return
+	}
+	defer sub.Unsubscribe()
+
+	// Fetch messages with short timeout
+	msgs, err := sub.Fetch(count, nats.MaxWait(2*time.Second))
+	if err != nil && err != nats.ErrTimeout {
+		s.logger.Warn("Error fetching events", "error", err)
+	}
+
+	// Parse and return events
+	events := make([]json.RawMessage, 0, len(msgs))
+	for _, msg := range msgs {
+		events = append(events, json.RawMessage(msg.Data))
+		msg.Ack()
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"events": events,
+		"count":  len(events),
+		"stream": "events",
+	})
 }

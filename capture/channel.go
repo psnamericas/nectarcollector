@@ -20,6 +20,7 @@ type ChannelState int
 const (
 	StateDetecting ChannelState = iota
 	StateRunning
+	StateNoSignal // Port open but no RS-232 signal (cable disconnected)
 	StateReconnecting
 	StateWaitingForNATS // Paused, waiting for NATS connection
 	StateStopped
@@ -56,6 +57,8 @@ func (s ChannelState) String() string {
 		return "detecting"
 	case StateRunning:
 		return "running"
+	case StateNoSignal:
+		return "no_signal"
 	case StateReconnecting:
 		return "reconnecting"
 	case StateWaitingForNATS:
@@ -122,6 +125,10 @@ type Channel struct {
 	consecutiveFailures int64 // For exponential backoff calculation, reset on success
 	garbledLineCount    int   // Consecutive lines with low ASCII validity
 	statsMutex          sync.RWMutex
+
+	// Event callback (optional) - called on state changes, errors, etc.
+	// Set via SetEventCallback. If nil, events are silently ignored.
+	eventCallback output.EventCallback
 
 	stopCh chan struct{}
 	wg     sync.WaitGroup
@@ -291,11 +298,23 @@ func (c *Channel) runCaptureSession(ctx context.Context) error {
 			"device", c.config.Device,
 			"baud", baudRate,
 			"flow_control", useFlowControl)
+
+		// Fire baud detection event
+		if c.eventCallback != nil {
+			c.eventCallback(output.Event{
+				Type:    output.EventBaudDetected,
+				Channel: c.config.ADesignation,
+				Device:  c.config.Device,
+				Message: fmt.Sprintf("Baud rate auto-detected: %d", baudRate),
+				Details: map[string]any{
+					"baud_rate":    baudRate,
+					"flow_control": useFlowControl,
+				},
+			})
+		}
 	}
 
 	// Phase 2: Open port
-	c.setState(StateRunning)
-
 	// Always record the baud rate being used (whether configured or detected)
 	c.statsMutex.Lock()
 	c.stats.DetectedBaud = baudRate
@@ -324,6 +343,19 @@ func (c *Channel) runCaptureSession(ctx context.Context) error {
 	}()
 
 	c.logger.Info("Port opened", "device", c.config.Device, "baud", baudRate, "flow_control", useFlowControl)
+
+	// Check RS-232 signals to determine if cable is connected
+	// Set state based on signal presence (DCD or DSR indicates connection)
+	if modem, err := c.reader.GetModemStatus(); err == nil && modem != nil {
+		if modem.DCD || modem.DSR {
+			c.setState(StateRunning)
+		} else {
+			c.setState(StateNoSignal)
+			c.logger.Warn("No RS-232 signal detected - cable may be disconnected",
+				"device", c.config.Device,
+				"dcd", modem.DCD, "dsr", modem.DSR, "cts", modem.CTS)
+		}
+	}
 
 	// Switch to shorter read timeout for production reads
 	// This allows faster shutdown response (500ms vs 5s)
@@ -508,6 +540,13 @@ func (c *Channel) checkLineQuality(line string) bool {
 
 // processLine processes a single line from the serial port
 func (c *Channel) processLine(line string) {
+	// Transition to running state if we were waiting for signal
+	// (data arriving means cable is connected)
+	if c.State() == StateNoSignal {
+		c.setState(StateRunning)
+		c.logger.Info("Signal detected, now receiving data", "device", c.config.Device)
+	}
+
 	// Get FIPS code (port-specific or app-level)
 	fipsCode := c.config.FIPSCode
 	if fipsCode == "" {
@@ -539,7 +578,22 @@ func (c *Channel) handleReconnect(ctx context.Context) {
 	c.consecutiveFailures++
 	c.stats.Reconnects++
 	failures := c.consecutiveFailures
+	reconnects := c.stats.Reconnects
 	c.statsMutex.Unlock()
+
+	// Fire reconnect event
+	if c.eventCallback != nil {
+		c.eventCallback(output.Event{
+			Type:    output.EventReconnect,
+			Channel: c.config.ADesignation,
+			Device:  c.config.Device,
+			Message: fmt.Sprintf("Reconnection attempt %d", reconnects),
+			Details: map[string]any{
+				"attempt":              reconnects,
+				"consecutive_failures": failures,
+			},
+		})
+	}
 
 	// Calculate delay with exponential backoff based on consecutive failures
 	delay := c.recovery.ReconnectDelay()
@@ -572,13 +626,52 @@ func (c *Channel) handleReconnect(ctx context.Context) {
 	}
 }
 
-// setState updates the channel state
+// SetEventCallback sets the optional event callback.
+// This allows the Manager to wire up event publishing without
+// the Channel needing to know about NATS or EventPublisher.
+func (c *Channel) SetEventCallback(cb output.EventCallback) {
+	c.eventCallback = cb
+}
+
+// setState updates the channel state and fires an event if callback is set
 func (c *Channel) setState(state ChannelState) {
 	c.stateMutex.Lock()
+	oldState := c.state
 	c.state = state
 	c.stateMutex.Unlock()
 
 	c.logger.Debug("State changed", "device", c.config.Device, "state", state.String())
+
+	// Fire event if callback is set and state actually changed
+	if c.eventCallback != nil && oldState != state {
+		c.eventCallback(output.Event{
+			Type:    output.EventStateChange,
+			Channel: c.config.ADesignation,
+			Device:  c.config.Device,
+			Message: oldState.String() + " -> " + state.String(),
+			Details: map[string]any{
+				"old_state": oldState.String(),
+				"new_state": state.String(),
+			},
+		})
+
+		// Also fire specific events for certain transitions
+		if state == StateNoSignal && oldState != StateNoSignal {
+			c.eventCallback(output.Event{
+				Type:    output.EventSignalLost,
+				Channel: c.config.ADesignation,
+				Device:  c.config.Device,
+				Message: "RS-232 signal lost - cable may be disconnected",
+			})
+		} else if oldState == StateNoSignal && state == StateRunning {
+			c.eventCallback(output.Event{
+				Type:    output.EventSignalDetected,
+				Channel: c.config.ADesignation,
+				Device:  c.config.Device,
+				Message: "RS-232 signal detected - cable connected",
+			})
+		}
+	}
 }
 
 // State returns the current state

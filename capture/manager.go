@@ -17,6 +17,7 @@ type Manager struct {
 	channels        []*Channel
 	natsConn        *output.NATSConnection
 	healthPublisher *output.HealthPublisher
+	eventPublisher  *output.EventPublisher
 	logger          *slog.Logger
 	mu              sync.RWMutex
 }
@@ -46,6 +47,21 @@ func (m *Manager) Start(ctx context.Context) error {
 	}
 	m.natsConn = natsConn
 
+	// Create event publisher (optional - nil-safe if NATS fails later)
+	eventsSubject := output.BuildEventsSubject(m.config.NATS.SubjectPrefix, m.config.App.InstanceID)
+	m.eventPublisher = output.NewEventPublisher(&output.EventPublisherConfig{
+		Conn:       m.natsConn.Conn(),
+		Subject:    eventsSubject,
+		InstanceID: m.config.App.InstanceID,
+		Logger:     m.logger,
+	})
+
+	// Check if previous run ended cleanly (power loss, crash, reboot detection)
+	m.eventPublisher.CheckAndPublishUncleanShutdown()
+
+	// Publish service start event
+	m.eventPublisher.PublishServiceStart("1.0.0")
+
 	// Create and start channels for enabled ports
 	startedCount := 0
 	for _, portCfg := range m.config.Ports {
@@ -67,6 +83,14 @@ func (m *Manager) Start(ctx context.Context) error {
 		if err != nil {
 			m.logger.Error("Failed to create channel", "device", portCfg.Device, "error", err)
 			continue
+		}
+
+		// Wire event callback - channel calls this, we publish to NATS
+		// This keeps Channel decoupled from EventPublisher
+		if m.eventPublisher != nil {
+			channel.SetEventCallback(func(event output.Event) {
+				m.eventPublisher.Publish(event)
+			})
 		}
 
 		if err := channel.Start(ctx); err != nil {
@@ -108,6 +132,11 @@ func (m *Manager) Start(ctx context.Context) error {
 // Stop gracefully stops all capture channels
 func (m *Manager) Stop() {
 	m.logger.Info("Stopping capture manager")
+
+	// Publish service stop event before shutting down
+	if m.eventPublisher != nil {
+		m.eventPublisher.PublishServiceStop("shutdown requested")
+	}
 
 	// Stop health publisher first (so it can send final heartbeat)
 	if m.healthPublisher != nil {
@@ -196,6 +225,16 @@ func (m *Manager) GetStates() map[string]ChannelState {
 // NATSConnected returns true if connected to NATS
 func (m *Manager) NATSConnected() bool {
 	return m.natsConn != nil && m.natsConn.IsConnected()
+}
+
+// NATSConn returns the NATS connection (for API event fetching)
+func (m *Manager) NATSConn() *output.NATSConnection {
+	return m.natsConn
+}
+
+// EventsSubject returns the NATS subject for events
+func (m *Manager) EventsSubject() string {
+	return output.BuildEventsSubject(m.config.NATS.SubjectPrefix, m.config.App.InstanceID)
 }
 
 // ChannelInfo contains channel information for API responses

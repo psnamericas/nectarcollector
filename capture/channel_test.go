@@ -15,6 +15,7 @@ func TestChannelStateString(t *testing.T) {
 	}{
 		{StateDetecting, "detecting"},
 		{StateRunning, "running"},
+		{StateNoSignal, "no_signal"},
 		{StateReconnecting, "reconnecting"},
 		{StateWaitingForNATS, "waiting_for_nats"},
 		{StateStopped, "stopped"},

@@ -174,6 +174,7 @@
 
         .state-detecting { background: #3498db; color: white; }
         .state-running { background: #27ae60; color: white; }
+        .state-no_signal { background: #e67e22; color: white; }
         .state-reconnecting { background: #f39c12; color: white; }
         .state-waiting_for_nats { background: #9b59b6; color: white; }
         .state-stopped { background: #95a5a6; color: white; }
@@ -189,6 +190,147 @@
         .cable-connected { background: #d5f5e3; color: #1e8449; }
         .cable-disconnected { background: #fadbd8; color: #c0392b; }
         .cable-unknown { background: #eee; color: #7f8c8d; }
+
+        /* Sparklines */
+        .sparkline-container {
+            margin-top: 10px;
+            padding-top: 8px;
+            border-top: 1px solid #e0e0e0;
+        }
+        .sparkline-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 4px;
+        }
+        .sparkline-label {
+            font-size: 0.75em;
+            color: #7f8c8d;
+            min-width: 50px;
+        }
+        .sparkline-value {
+            font-size: 0.8em;
+            font-weight: 600;
+            color: #2c3e50;
+            min-width: 55px;
+            text-align: right;
+        }
+        .sparkline-svg {
+            flex: 1;
+            height: 24px;
+            background: linear-gradient(to bottom, rgba(253, 184, 19, 0.05) 0%, rgba(253, 184, 19, 0.1) 100%);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .sparkline-svg path.area {
+            fill: rgba(253, 184, 19, 0.3);
+        }
+        .sparkline-svg path.line {
+            fill: none;
+            stroke: #FDB813;
+            stroke-width: 1.5;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+        .sparkline-svg circle.dot {
+            fill: #e67e22;
+        }
+        .sparkline-svg .grid-line {
+            stroke: rgba(0,0,0,0.05);
+            stroke-width: 1;
+        }
+        /* Activity indicator pulse */
+        @keyframes activity-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        .activity-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #27ae60;
+            display: inline-block;
+            margin-left: 4px;
+        }
+        .activity-dot.active {
+            animation: activity-pulse 0.5s ease-in-out;
+        }
+        .activity-dot.idle {
+            background: #95a5a6;
+        }
+
+        /* Events Panel - Full Width */
+        .events-panel {
+            background: white;
+            padding: 16px;
+            border-radius: 8px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+            width: 100%;
+            margin-bottom: 12px;
+        }
+        .events-panel h2 {
+            color: #2c3e50;
+            margin-bottom: 12px;
+            border-bottom: 2px solid #FDB813;
+            padding-bottom: 8px;
+            font-size: 1em;
+        }
+
+        /* Events List */
+        .events-list {
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        .event-item {
+            display: flex;
+            gap: 8px;
+            padding: 6px 8px;
+            border-bottom: 1px solid #eee;
+            font-size: 0.8em;
+            align-items: flex-start;
+        }
+        .event-item:last-child {
+            border-bottom: none;
+        }
+        .event-time {
+            color: #2c3e50;
+            font-size: 0.85em;
+            white-space: nowrap;
+            font-family: monospace;
+        }
+        .event-relative {
+            color: #95a5a6;
+            font-size: 0.8em;
+            white-space: nowrap;
+        }
+        .event-type {
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.75em;
+            font-weight: 600;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+        .event-type.service_start { background: #d5f5e3; color: #1e8449; }
+        .event-type.service_stop { background: #fadbd8; color: #c0392b; }
+        .event-type.unclean_shutdown { background: #f5b7b1; color: #922b21; }
+        .event-type.state_change { background: #d6eaf8; color: #2874a6; }
+        .event-type.signal_lost { background: #fadbd8; color: #c0392b; }
+        .event-type.signal_detected { background: #d5f5e3; color: #1e8449; }
+        .event-type.reconnect { background: #fdebd0; color: #b9770e; }
+        .event-type.baud_detected { background: #e8daef; color: #6c3483; }
+        .event-type.error { background: #fadbd8; color: #c0392b; }
+        .event-channel {
+            font-weight: 600;
+            color: #2c3e50;
+            min-width: 25px;
+        }
+        .event-message {
+            color: #555;
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
 
         /* COM Ports Overview */
         .ports-grid {
@@ -656,20 +798,18 @@
                 <div class="status-indicator" id="sse-indicator"></div>
                 <span><strong>Stream:</strong> <span id="sse-status">Off</span></span>
             </div>
+            <div class="status-item" style="margin-left: auto;">
+                <span><strong>UTC:</strong> <span id="utc-clock" style="font-family: monospace;">--:--:--</span></span>
+            </div>
         </div>
 
         <div class="main-content">
             <div class="panel">
-                <h2>System</h2>
+                <h2>System & Network</h2>
                 <div id="system-container" class="system-grid">
                     <div class="no-data">Loading...</div>
                 </div>
-            </div>
-
-            <div class="panel">
-                <h2>Network</h2>
-                <div id="network-container" class="ports-grid">
-                    <div class="no-data">Loading...</div>
+                <div id="network-container" class="ports-grid" style="margin-top: 12px;">
                 </div>
             </div>
 
@@ -692,6 +832,13 @@
                 <div id="stats-container">
                     <div class="no-data">Loading...</div>
                 </div>
+            </div>
+        </div>
+
+        <div class="events-panel">
+            <h2>Event Log</h2>
+            <div id="events-container" class="events-list">
+                <div class="no-data">Loading events...</div>
             </div>
         </div>
 
@@ -781,6 +928,120 @@
         let lineCount1 = 0;
         let lineCount2 = 0;
         const MAX_LINES = 500;
+
+        // Sparkline data tracking
+        const SPARKLINE_POINTS = 30;  // 30 data points (2.5 min at 5s intervals)
+        const channelHistory = {};    // { channelId: { lines: [counts], bytes: [counts], lastLines: n, lastBytes: n, lastUpdate: Date } }
+        let globalStats = { startTime: Date.now(), totalLines: 0, totalBytes: 0 };
+
+        // Initialize or get channel history
+        function getChannelHistory(channelId) {
+            if (!channelHistory[channelId]) {
+                channelHistory[channelId] = {
+                    linesPerSec: new Array(SPARKLINE_POINTS).fill(0),
+                    bytesPerSec: new Array(SPARKLINE_POINTS).fill(0),
+                    lastLines: 0,
+                    lastBytes: 0,
+                    lastUpdate: Date.now(),
+                    peakLinesPerSec: 0,
+                    peakBytesPerSec: 0
+                };
+            }
+            return channelHistory[channelId];
+        }
+
+        // Update channel history with new stats
+        function updateChannelHistory(channelId, currentLines, currentBytes) {
+            const history = getChannelHistory(channelId);
+            const now = Date.now();
+            const elapsed = (now - history.lastUpdate) / 1000; // seconds
+
+            if (elapsed > 0 && history.lastUpdate > 0) {
+                const linesDelta = Math.max(0, currentLines - history.lastLines);
+                const bytesDelta = Math.max(0, currentBytes - history.lastBytes);
+
+                const linesPerSec = linesDelta / elapsed;
+                const bytesPerSec = bytesDelta / elapsed;
+
+                // Add new data point, remove oldest
+                history.linesPerSec.push(linesPerSec);
+                history.linesPerSec.shift();
+                history.bytesPerSec.push(bytesPerSec);
+                history.bytesPerSec.shift();
+
+                // Track peaks
+                history.peakLinesPerSec = Math.max(history.peakLinesPerSec, linesPerSec);
+                history.peakBytesPerSec = Math.max(history.peakBytesPerSec, bytesPerSec);
+            }
+
+            history.lastLines = currentLines;
+            history.lastBytes = currentBytes;
+            history.lastUpdate = now;
+
+            return history;
+        }
+
+        // Generate SVG sparkline
+        function generateSparkline(data, width = 120, height = 24, color = '#FDB813') {
+            if (!data || data.length === 0) return '';
+
+            const max = Math.max(...data, 0.1); // Avoid division by zero
+            const min = 0;
+            const range = max - min || 1;
+
+            const points = data.map((val, i) => {
+                const x = (i / (data.length - 1)) * width;
+                const y = height - ((val - min) / range) * (height - 4) - 2;
+                return { x, y };
+            });
+
+            // Build smooth line path
+            const linePath = points.map((p, i) =>
+                (i === 0 ? 'M' : 'L') + p.x.toFixed(1) + ',' + p.y.toFixed(1)
+            ).join(' ');
+
+            // Build area path (filled below line)
+            const areaPath = linePath +
+                ' L' + width + ',' + height +
+                ' L0,' + height + ' Z';
+
+            // Current value dot
+            const lastPoint = points[points.length - 1];
+            const dotRadius = data[data.length - 1] > 0 ? 3 : 2;
+            const dotColor = data[data.length - 1] > 0 ? '#e67e22' : '#95a5a6';
+
+            return `
+                <svg class="sparkline-svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
+                    <path class="area" d="${areaPath}"/>
+                    <path class="line" d="${linePath}"/>
+                    <circle class="dot" cx="${lastPoint.x}" cy="${lastPoint.y}" r="${dotRadius}" fill="${dotColor}"/>
+                </svg>
+            `;
+        }
+
+        // Format rate values nicely
+        function formatRate(value, unit) {
+            if (value === 0) return '0 ' + unit;
+            if (value < 1) return value.toFixed(2) + ' ' + unit;
+            if (value < 10) return value.toFixed(1) + ' ' + unit;
+            return Math.round(value) + ' ' + unit;
+        }
+
+        // Format bytes per second
+        function formatBytesPerSec(bytes) {
+            if (bytes === 0) return '0 B/s';
+            if (bytes < 1024) return bytes.toFixed(0) + ' B/s';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB/s';
+            return (bytes / (1024 * 1024)).toFixed(2) + ' MB/s';
+        }
+
+        // Get current activity status
+        function getActivityStatus(history) {
+            const recentLines = history.linesPerSec.slice(-3);
+            const hasActivity = recentLines.some(v => v > 0);
+            const currentRate = history.linesPerSec[history.linesPerSec.length - 1];
+            return { hasActivity, currentRate };
+        }
 
         async function updateSystem() {
             try {
@@ -932,6 +1193,7 @@
                 });
 
                 channelsContainer.innerHTML = data.channels.map(ch => {
+                    const channelId = `${ch.fips_code}-${ch.a_designation}`;
                     const baud = ch.stats.DetectedBaud || 'detecting...';
                     const flow = ch.stats.DetectedFlow ? 'HW' : 'None';
                     const shortDevice = ch.device.replace('/dev/', '');
@@ -940,8 +1202,17 @@
                         ? formatTimeAgo(new Date(ch.stats.LastLineTime))
                         : 'never';
 
+                    // Update sparkline history
+                    const history = updateChannelHistory(channelId, ch.stats.LinesRead, ch.stats.BytesRead);
+                    const { hasActivity, currentRate } = getActivityStatus(history);
+                    const activityClass = hasActivity ? 'active' : 'idle';
+
+                    // Current rates
+                    const currentLinesPerSec = history.linesPerSec[history.linesPerSec.length - 1] || 0;
+                    const currentBytesPerSec = history.bytesPerSec[history.bytesPerSec.length - 1] || 0;
+
                     // Cable connection status from RS-232 modem signals
-                    const signals = ch.stats.Signals;
+                    const signals = ch.stats.signals;
                     const cableConnected = signals && (signals.dcd || signals.dsr);
                     const cableStatus = signals
                         ? (cableConnected ? 'Cable OK' : 'No Cable')
@@ -956,10 +1227,10 @@
                     return `
                         <div class="channel-card">
                             <div class="channel-header">
-                                <div class="channel-name">${ch.a_designation} <span style="opacity:0.6;font-weight:normal;font-size:0.85em">(${shortDevice})</span></div>
+                                <div class="channel-name">${ch.a_designation} <span style="opacity:0.6;font-weight:normal;font-size:0.85em">(${shortDevice})</span><span class="activity-dot ${activityClass}"></span></div>
                                 <div style="display:flex;gap:6px;align-items:center;">
                                     <div class="cable-status cable-${cableClass}" title="${signalDetails}">${cableStatus}</div>
-                                    <div class="state-badge state-${ch.state}">${ch.state}</div>
+                                    <div class="state-badge state-${ch.state}">${formatState(ch.state)}</div>
                                 </div>
                             </div>
                             <div class="channel-stats">
@@ -984,12 +1255,20 @@
                                     <div class="stat-value">${ch.stats.Errors}</div>
                                 </div>
                                 <div class="stat-item">
-                                    <div class="stat-label">Reconn</div>
-                                    <div class="stat-value">${reconnects}</div>
-                                </div>
-                                <div class="stat-item">
                                     <div class="stat-label">Last Line</div>
                                     <div class="stat-value">${lastLine}</div>
+                                </div>
+                            </div>
+                            <div class="sparkline-container">
+                                <div class="sparkline-row">
+                                    <span class="sparkline-label">Lines/s</span>
+                                    <span class="sparkline-value">${formatRate(currentLinesPerSec, '/s')}</span>
+                                    ${generateSparkline(history.linesPerSec)}
+                                </div>
+                                <div class="sparkline-row">
+                                    <span class="sparkline-label">Data</span>
+                                    <span class="sparkline-value">${formatBytesPerSec(currentBytesPerSec)}</span>
+                                    ${generateSparkline(history.bytesPerSec)}
                                 </div>
                             </div>
                         </div>
@@ -999,13 +1278,54 @@
                 const totalLines = data.channels.reduce((sum, ch) => sum + ch.stats.LinesRead, 0);
                 const totalBytes = data.channels.reduce((sum, ch) => sum + ch.stats.BytesRead, 0);
                 const totalErrors = data.channels.reduce((sum, ch) => sum + ch.stats.Errors, 0);
+                const totalReconnects = data.channels.reduce((sum, ch) => sum + (ch.stats.Reconnects || 0), 0);
                 const activeChannels = data.channels.filter(ch => ch.state === 'running').length;
+                const noSignalChannels = data.channels.filter(ch => ch.state === 'no_signal').length;
+
+                // Calculate aggregate throughput from all channel histories
+                let totalLinesPerSec = 0;
+                let totalBytesPerSec = 0;
+                let peakLinesPerSec = 0;
+                let peakBytesPerSec = 0;
+                const aggregateLinesHistory = new Array(SPARKLINE_POINTS).fill(0);
+                const aggregateBytesHistory = new Array(SPARKLINE_POINTS).fill(0);
+
+                data.channels.forEach(ch => {
+                    const channelId = `${ch.fips_code}-${ch.a_designation}`;
+                    const history = channelHistory[channelId];
+                    if (history) {
+                        const currentLines = history.linesPerSec[history.linesPerSec.length - 1] || 0;
+                        const currentBytes = history.bytesPerSec[history.bytesPerSec.length - 1] || 0;
+                        totalLinesPerSec += currentLines;
+                        totalBytesPerSec += currentBytes;
+                        peakLinesPerSec = Math.max(peakLinesPerSec, history.peakLinesPerSec);
+                        peakBytesPerSec = Math.max(peakBytesPerSec, history.peakBytesPerSec);
+
+                        // Aggregate sparkline data
+                        for (let i = 0; i < SPARKLINE_POINTS; i++) {
+                            aggregateLinesHistory[i] += history.linesPerSec[i] || 0;
+                            aggregateBytesHistory[i] += history.bytesPerSec[i] || 0;
+                        }
+                    }
+                });
+
+                // Calculate session uptime
+                const sessionUptime = Math.floor((Date.now() - globalStats.startTime) / 1000);
+                const uptimeStr = formatUptime(sessionUptime);
 
                 document.getElementById('stats-container').innerHTML = `
-                    <div class="channel-stats">
+                    <div class="channel-stats" style="grid-template-columns: repeat(3, 1fr);">
                         <div class="stat-item">
                             <div class="stat-label">Active</div>
                             <div class="stat-value">${activeChannels}/${data.channels.length}</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">No Signal</div>
+                            <div class="stat-value">${noSignalChannels}</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">Session</div>
+                            <div class="stat-value">${uptimeStr}</div>
                         </div>
                         <div class="stat-item">
                             <div class="stat-label">Total Lines</div>
@@ -1017,7 +1337,19 @@
                         </div>
                         <div class="stat-item">
                             <div class="stat-label">Errors</div>
-                            <div class="stat-value">${totalErrors}</div>
+                            <div class="stat-value" style="color: ${totalErrors > 0 ? '#e74c3c' : '#2c3e50'}">${totalErrors}</div>
+                        </div>
+                    </div>
+                    <div class="sparkline-container" style="margin-top: 12px;">
+                        <div class="sparkline-row">
+                            <span class="sparkline-label">Lines/s</span>
+                            <span class="sparkline-value">${formatRate(totalLinesPerSec, '/s')}</span>
+                            ${generateSparkline(aggregateLinesHistory)}
+                        </div>
+                        <div class="sparkline-row">
+                            <span class="sparkline-label">Data</span>
+                            <span class="sparkline-value">${formatBytesPerSec(totalBytesPerSec)}</span>
+                            ${generateSparkline(aggregateBytesHistory)}
                         </div>
                     </div>
                 `;
@@ -1244,18 +1576,129 @@
             return days + 'd ago';
         }
 
+        function formatState(state) {
+            const stateMap = {
+                'detecting': 'Detecting',
+                'running': 'Running',
+                'no_signal': 'No Signal',
+                'reconnecting': 'Reconnecting',
+                'waiting_for_nats': 'Waiting for NATS',
+                'stopped': 'Stopped',
+                'error': 'Error'
+            };
+            return stateMap[state] || state;
+        }
+
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
         }
 
+        // Format event type for display
+        function formatEventType(type) {
+            const typeMap = {
+                'service_start': 'Start',
+                'service_stop': 'Stop',
+                'unclean_shutdown': 'Crash/Reboot',
+                'state_change': 'State',
+                'signal_lost': 'No Signal',
+                'signal_detected': 'Signal',
+                'reconnect': 'Reconnect',
+                'baud_detected': 'Baud',
+                'error': 'Error'
+            };
+            return typeMap[type] || type;
+        }
+
+        // Format event time - returns {absolute, relative} in UTC
+        function formatEventTime(timestamp) {
+            const date = new Date(timestamp);
+            const now = new Date();
+            const diffMs = now - date;
+            const diffMins = Math.floor(diffMs / 60000);
+
+            // Absolute time in UTC 24h format (HH:MM:SS or date + time if older than today)
+            const pad = n => n.toString().padStart(2, '0');
+            const timeStr = `${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}:${pad(date.getUTCSeconds())}`;
+            const dateStr = `${date.getUTCFullYear()}-${pad(date.getUTCMonth()+1)}-${pad(date.getUTCDate())}`;
+
+            const nowUTC = new Date(now.toISOString().split('T')[0]);
+            const dateUTC = new Date(date.toISOString().split('T')[0]);
+            const isToday = nowUTC.getTime() === dateUTC.getTime();
+
+            const absolute = isToday ? timeStr : `${dateStr} ${timeStr.substring(0,5)}`;
+
+            // Relative time
+            let relative;
+            if (diffMins < 1) relative = 'now';
+            else if (diffMins < 60) relative = diffMins + 'm ago';
+            else {
+                const diffHours = Math.floor(diffMins / 60);
+                if (diffHours < 24) relative = diffHours + 'h ago';
+                else {
+                    const diffDays = Math.floor(diffHours / 24);
+                    relative = diffDays + 'd ago';
+                }
+            }
+
+            return { absolute, relative };
+        }
+
+        async function updateEvents() {
+            try {
+                const response = await fetch('/api/events?count=50');
+                const data = await response.json();
+                const container = document.getElementById('events-container');
+
+                if (!data.events || data.events.length === 0) {
+                    container.innerHTML = '<div class="no-data">No events yet</div>';
+                    return;
+                }
+
+                // Reverse to show newest first
+                const events = data.events.reverse();
+
+                container.innerHTML = events.map(event => {
+                    const channel = event.ch || '';
+                    const message = event.msg || '';
+                    const type = event.type || 'unknown';
+                    const time = formatEventTime(event.ts);
+
+                    return `
+                        <div class="event-item">
+                            <span class="event-time">${time.absolute}</span>
+                            <span class="event-relative">(${time.relative})</span>
+                            <span class="event-type ${type}">${formatEventType(type)}</span>
+                            ${channel ? `<span class="event-channel">${channel}</span>` : ''}
+                            <span class="event-message">${escapeHtml(message)}</span>
+                        </div>
+                    `;
+                }).join('');
+            } catch (error) {
+                console.error('Error updating events:', error);
+                document.getElementById('events-container').innerHTML =
+                    '<div class="no-data">Events unavailable</div>';
+            }
+        }
+
+        // Update UTC clock
+        function updateUTCClock() {
+            const now = new Date();
+            const utc = now.toISOString().substr(11, 8);
+            document.getElementById('utc-clock').textContent = utc;
+        }
+
         updateStats();
         updatePorts();
         updateSystem();
+        updateEvents();
+        updateUTCClock();
         statsInterval = setInterval(updateStats, 5000);
         setInterval(updatePorts, 5000);
         setInterval(updateSystem, 5000);
+        setInterval(updateEvents, 10000); // Events refresh every 10s (less frequent)
+        setInterval(updateUTCClock, 1000); // Clock updates every second
     </script>
 </body>
 </html>

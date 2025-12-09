@@ -656,6 +656,26 @@ EOF
             --defaults 2>&1 || true
         log OK "CDR stream created (50GB, NO TTL - durable)"
     fi
+
+    # Events stream - discrete events like state changes, reconnects, errors
+    # 1GB storage, no TTL (will store years of sparse event data)
+    if nats stream info events &>/dev/null; then
+        log OK "Events stream already exists"
+    else
+        nats stream add events \
+            --subjects "*.events.>" \
+            --retention limits \
+            --storage file \
+            --max-bytes 1073741824 \
+            --max-msg-size 4096 \
+            --discard old \
+            --replicas 1 \
+            --dupe-window 1m \
+            --no-deny-delete \
+            --no-deny-purge \
+            --defaults 2>&1 || true
+        log OK "Events stream created (1GB, NO TTL - sparse events)"
+    fi
 }
 
 #-------------------------------------------------------------------------------
