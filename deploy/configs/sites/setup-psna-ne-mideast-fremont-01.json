@@ -1,0 +1,9 @@
+{
+  "hostname": "psna-ne-mideast-fremont-01",
+  "fips_code": "1314010002",
+  "vendor": "viper",
+  "county": "fremont",
+  "ports": [{"device": "ttyS1", "designation": "A1"}],
+  "dashboard_user": "psna",
+  "dashboard_pass": "nectar2025"
+}

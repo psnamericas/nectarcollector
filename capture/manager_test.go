@@ -134,19 +134,24 @@ func TestManagerGetAllStatsEmpty(t *testing.T) {
 }
 
 func TestChannelInfo(t *testing.T) {
+	stats := ChannelStats{
+		BytesRead: 1000,
+		LinesRead: 50,
+	}
 	info := ChannelInfo{
 		Device:       "/dev/ttyS1",
+		Type:         "serial",
 		ADesignation: "A1",
 		FIPSCode:     "1234567890",
 		State:        "running",
-		Stats: ChannelStats{
-			BytesRead: 1000,
-			LinesRead: 50,
-		},
+		Stats:        stats,
 	}
 
 	if info.Device != "/dev/ttyS1" {
 		t.Errorf("Device = %q, want %q", info.Device, "/dev/ttyS1")
+	}
+	if info.Type != "serial" {
+		t.Errorf("Type = %q, want %q", info.Type, "serial")
 	}
 	if info.ADesignation != "A1" {
 		t.Errorf("ADesignation = %q, want %q", info.ADesignation, "A1")
@@ -157,7 +162,12 @@ func TestChannelInfo(t *testing.T) {
 	if info.State != "running" {
 		t.Errorf("State = %q, want %q", info.State, "running")
 	}
-	if info.Stats.BytesRead != 1000 {
-		t.Errorf("Stats.BytesRead = %d, want 1000", info.Stats.BytesRead)
+	// Stats is now interface{}, type assert to verify
+	if s, ok := info.Stats.(ChannelStats); ok {
+		if s.BytesRead != 1000 {
+			t.Errorf("Stats.BytesRead = %d, want 1000", s.BytesRead)
+		}
+	} else {
+		t.Errorf("Stats should be ChannelStats type")
 	}
 }

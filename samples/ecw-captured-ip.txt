@@ -1,0 +1,92 @@
+root@psna-ne-northeast-southsiouxcity-01:~# nc -l -p 8081 -k
+POST /NetworkLogger/Primary/Recorder HTTP/1.1
+Content-Type: application/xml
+Accept: application/xml
+Cache-Control: no-cache
+Pragma: no-cache
+User-Agent: Java/1.8.0_282
+Host: 10.250.250.10:8081
+Connection: keep-alive
+Content-Length: 3027
+
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<CallDetailRecord>
+    <Id>2d41d3fd-d03f-4e67-b9be-9a2cb82f9b30</Id>
+    <DisplayNumber>428975</DisplayNumber>
+    <ANI>4028413335</ANI>
+    <Direction>Inbound</Direction>
+    <CallerName>WIRELESS CALLER</CallerName>
+    <TN>4028413335</TN>
+    <TrunkSeizureTimestamp>2025-12-15T16:18:42.937-06:00</TrunkSeizureTimestamp>
+    <TimeZoneOffset>-06:00</TimeZoneOffset>
+    <RingTimestamp>2025-12-15T16:18:42.937-06:00</RingTimestamp>
+    <ReleaseTimestamp>2025-12-15T16:19:18.209-06:00</ReleaseTimestamp>
+    <DispatchGroups>
+        <DispatchGroup>knox</DispatchGroup>
+    </DispatchGroups>
+    <Queues>
+        <Queue>
+            <QueueName>knox-admin</QueueName>
+            <QueueStartTimestamp>2025-12-15T16:18:42.905-06:00</QueueStartTimestamp>
+            <QueueEndTimestamp>2025-12-15T16:19:31.847-06:00</QueueEndTimestamp>
+        </Queue>
+    </Queues>
+    <RouteInformation>
+        <SignallingType>SIP</SignallingType>
+        <TrunkId>4022884261</TrunkId>
+        <TransportType>FXO_ADMIN</TransportType>
+        <RouteName>admin</RouteName>
+        <LineNumber>trunk-gateway-fxo-12-1</LineNumber>
+    </RouteInformation>
+    <MediaType>VOICE</MediaType>
+    <AbandonedIndicator>false</AbandonedIndicator>
+    <ACDIndicator>false</ACDIndicator>
+    <AnswerPosition>0251</AnswerPosition>
+    <AnsweringUserName>vclairmont</AnsweringUserName>
+    <CallEvents>
+        <CallEvent>
+            <EventType>Answer</EventType>
+            <Timestamp>2025-12-15T16:18:44.374-06:00</Timestamp>
+            <UserName>vclairmont</UserName>
+            <Position>0251</Position>
+            <Details>User vclairmont answering call</Details>
+        </CallEvent>
+        <CallEvent>
+            <EventType>Release</EventType>
+            <Timestamp>2025-12-15T16:19:18.210-06:00</Timestamp>
+            <UserName>vclairmont</UserName>
+            <Position>0251</Position>
+            <Details>User vclairmont releasing call </Details>
+        </CallEvent>
+    </CallEvents>
+    <ALI/>
+    <RapidSos/>
+    <Participants>
+        <Participant>
+            <Type>Local</Type>
+            <UserName>vclairmont</UserName>
+            <JoinTimestamp>2025-12-15T16:18:44.374-06:00</JoinTimestamp>
+            <LeftTimestamp>2025-12-15T16:19:18.047-06:00</LeftTimestamp>
+        </Participant>
+        <Participant>
+            <Type>Remote</Type>
+            <JoinTimestamp>2025-12-15T16:18:42.938-06:00</JoinTimestamp>
+            <LeftTimestamp>2025-12-15T16:19:18.208-06:00</LeftTimestamp>
+            <Number>4022884261</Number>
+        </Participant>
+    </Participants>
+    <Locations>
+        <Location>
+            <Address1></Address1>
+            <Address2></Address2>
+            <City></City>
+            <Country></Country>
+            <County></County>
+            <State></State>
+            <Zip></Zip>
+            <Longitude>0.0</Longitude>
+            <Latitude>0.0</Latitude>
+        </Location>
+    </Locations>
+    <Version>2.1</Version>
+</CallDetailRecord>

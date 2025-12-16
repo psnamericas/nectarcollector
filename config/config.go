@@ -25,20 +25,39 @@ type AppConfig struct {
 	FIPSCode   string `json:"fips_code"` // Default FIPS code for all ports
 }
 
-// PortConfig defines configuration for a single serial port
+// PortType constants
+const (
+	PortTypeSerial = "serial" // Default: serial port capture
+	PortTypeHTTP   = "http"   // HTTP POST endpoint capture
+)
+
+// PortConfig defines configuration for a capture channel (serial or HTTP)
 type PortConfig struct {
-	Device         string `json:"device"`           // e.g., "/dev/ttyUSB0"
-	ADesignation   string `json:"a_designation"`    // "A1" through "A16"
+	Type           string `json:"type"`             // "serial" (default) or "http"
+	Device         string `json:"device"`           // Serial: e.g., "/dev/ttyUSB0"
+	Path           string `json:"path"`             // HTTP: endpoint path, e.g., "/cdr"
+	ListenPort     int    `json:"listen_port"`      // HTTP: port to listen on (0 = use monitoring port)
+	ADesignation   string `json:"a_designation"`    // "A1" through "A16" or "B1" through "B16"
 	FIPSCode       string `json:"fips_code"`        // Optional override for this port
 	Vendor         string `json:"vendor"`           // CPE vendor: "intrado", "solacom", "zetron", "vesta", etc.
 	County         string `json:"county"`           // County name (lowercase): "lancaster", "douglas", etc.
-	BaudRate       int    `json:"baud_rate"`        // 0 = auto-detect
-	DataBits       int    `json:"data_bits"`        // 5, 6, 7, or 8 (default: 8)
-	Parity         string `json:"parity"`           // "none", "odd", "even", "mark", "space" (default: "none")
-	StopBits       int    `json:"stop_bits"`        // 1 or 2 (default: 1)
-	UseFlowControl *bool  `json:"use_flow_control"` // nil = auto-detect
+	BaudRate       int    `json:"baud_rate"`        // Serial: 0 = auto-detect
+	DataBits       int    `json:"data_bits"`        // Serial: 5, 6, 7, or 8 (default: 8)
+	Parity         string `json:"parity"`           // Serial: "none", "odd", "even", "mark", "space" (default: "none")
+	StopBits       int    `json:"stop_bits"`        // Serial: 1 or 2 (default: 1)
+	UseFlowControl *bool  `json:"use_flow_control"` // Serial: nil = auto-detect
 	Enabled        bool   `json:"enabled"`
 	Description    string `json:"description"`
+}
+
+// IsSerial returns true if this is a serial port config
+func (p *PortConfig) IsSerial() bool {
+	return p.Type == "" || p.Type == PortTypeSerial
+}
+
+// IsHTTP returns true if this is an HTTP endpoint config
+func (p *PortConfig) IsHTTP() bool {
+	return p.Type == PortTypeHTTP
 }
 
 // DetectionConfig contains parameters for autobaud and pinout detection

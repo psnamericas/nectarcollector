@@ -1,0 +1,9 @@
+{
+  "hostname": "psna-ne-southcentralpan-lexington-01",
+  "fips_code": "1314010001",
+  "vendor": "viper",
+  "county": "lexington",
+  "ports": [{"device": "ttyS1", "designation": "B1"}],
+  "dashboard_user": "psna",
+  "dashboard_pass": "nectar2025"
+}

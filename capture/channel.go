@@ -180,7 +180,7 @@ func NewChannel(
 		LogMaxSizeMB:  logCfg.MaxSizeMB,
 		LogMaxBackups: logCfg.MaxBackups,
 		LogCompress:   logCfg.Compress,
-		NATSConn:      natsConn.Conn(),
+		NATSConn:      natsConn,
 		NATSSubject:   natsSubject,
 		Logger:        logger,
 	}
@@ -344,17 +344,15 @@ func (c *Channel) runCaptureSession(ctx context.Context) error {
 
 	c.logger.Info("Port opened", "device", c.config.Device, "baud", baudRate, "flow_control", useFlowControl)
 
-	// Check RS-232 signals to determine if cable is connected
-	// Set state based on signal presence (DCD or DSR indicates connection)
+	// Set state to running - we'll detect disconnection via read errors or data quality
+	// Many devices don't assert RS-232 control signals (DCD/DSR) even when connected
+	c.setState(StateRunning)
+
+	// Log signal status for debugging, but don't change state based on it
 	if modem, err := c.reader.GetModemStatus(); err == nil && modem != nil {
-		if modem.DCD || modem.DSR {
-			c.setState(StateRunning)
-		} else {
-			c.setState(StateNoSignal)
-			c.logger.Warn("No RS-232 signal detected - cable may be disconnected",
-				"device", c.config.Device,
-				"dcd", modem.DCD, "dsr", modem.DSR, "cts", modem.CTS)
-		}
+		c.logger.Debug("RS-232 signals",
+			"device", c.config.Device,
+			"dcd", modem.DCD, "dsr", modem.DSR, "cts", modem.CTS)
 	}
 
 	// Switch to shorter read timeout for production reads

@@ -1,0 +1,9 @@
+{
+  "hostname": "psna-ne-eastcentral-grandisland-01",
+  "fips_code": "1314010003",
+  "vendor": "viper",
+  "county": "grandisland",
+  "ports": [{"device": "ttyS1", "designation": "A1"}],
+  "dashboard_user": "psna",
+  "dashboard_pass": "nectar2025"
+}

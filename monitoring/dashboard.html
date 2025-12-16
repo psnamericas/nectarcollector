@@ -351,8 +351,9 @@
             background: #d5f5e3;
         }
         .port-card.disconnected {
-            border-color: #e74c3c;
-            background: #fadbd8;
+            border-color: #ddd;
+            background: #f5f5f5;
+            opacity: 0.6;
         }
         .port-card.in-use {
             box-shadow: 0 0 0 2px #FDB813;
@@ -1162,6 +1163,9 @@
                     natsStatus.textContent = 'Disconnected';
                 }
 
+                // Store NATS stats for use in stats panel
+                window.natsStats = data.nats;
+
                 document.getElementById('system-status').textContent = 'Healthy';
                 document.getElementById('health-indicator').className = 'status-indicator connected';
 
@@ -1194,16 +1198,24 @@
 
                 channelsContainer.innerHTML = data.channels.map(ch => {
                     const channelId = `${ch.fips_code}-${ch.a_designation}`;
-                    const baud = ch.stats.DetectedBaud || 'detecting...';
-                    const flow = ch.stats.DetectedFlow ? 'HW' : 'None';
-                    const shortDevice = ch.device.replace('/dev/', '');
+                    const isHTTP = ch.type === 'http';
+
+                    // Handle different stats formats for serial vs HTTP channels
+                    const linesRead = isHTTP ? (ch.stats.requests || 0) : (ch.stats.LinesRead || 0);
+                    const bytesRead = isHTTP ? (ch.stats.bytes_read || 0) : (ch.stats.BytesRead || 0);
+                    const errors = isHTTP ? (ch.stats.errors || 0) : (ch.stats.Errors || 0);
+                    const lastTime = isHTTP ? ch.stats.last_request_time : ch.stats.LastLineTime;
+
+                    const baud = isHTTP ? 'HTTP' : (ch.stats.DetectedBaud || 'detecting...');
+                    const flow = isHTTP ? 'N/A' : (ch.stats.DetectedFlow ? 'HW' : 'None');
+                    const shortDevice = isHTTP ? ch.path : ch.device.replace('/dev/', '');
                     const reconnects = ch.stats.Reconnects || 0;
-                    const lastLine = ch.stats.LastLineTime && ch.stats.LastLineTime !== '0001-01-01T00:00:00Z'
-                        ? formatTimeAgo(new Date(ch.stats.LastLineTime))
+                    const lastLine = lastTime && lastTime !== '0001-01-01T00:00:00Z'
+                        ? formatTimeAgo(new Date(lastTime))
                         : 'never';
 
                     // Update sparkline history
-                    const history = updateChannelHistory(channelId, ch.stats.LinesRead, ch.stats.BytesRead);
+                    const history = updateChannelHistory(channelId, linesRead, bytesRead);
                     const { hasActivity, currentRate } = getActivityStatus(history);
                     const activityClass = hasActivity ? 'active' : 'idle';
 
@@ -1211,18 +1223,30 @@
                     const currentLinesPerSec = history.linesPerSec[history.linesPerSec.length - 1] || 0;
                     const currentBytesPerSec = history.bytesPerSec[history.bytesPerSec.length - 1] || 0;
 
-                    // Cable connection status from RS-232 modem signals
+                    // Cable connection status from RS-232 modem signals (serial only)
                     const signals = ch.stats.signals;
-                    const cableConnected = signals && (signals.dcd || signals.dsr);
-                    const cableStatus = signals
-                        ? (cableConnected ? 'Cable OK' : 'No Cable')
-                        : 'Unknown';
-                    const cableClass = signals
-                        ? (cableConnected ? 'connected' : 'disconnected')
-                        : 'unknown';
-                    const signalDetails = signals
-                        ? `DCD:${signals.dcd?'1':'0'} DSR:${signals.dsr?'1':'0'} CTS:${signals.cts?'1':'0'}`
-                        : '';
+                    let cableStatus, cableClass, signalDetails;
+                    if (isHTTP) {
+                        cableStatus = 'HTTP';
+                        cableClass = 'connected';
+                        signalDetails = 'HTTP POST endpoint';
+                    } else {
+                        const cableConnected = signals && (signals.dcd || signals.dsr);
+                        cableStatus = signals
+                            ? (cableConnected ? 'Cable OK' : 'No Cable')
+                            : 'Unknown';
+                        cableClass = signals
+                            ? (cableConnected ? 'connected' : 'disconnected')
+                            : 'unknown';
+                        signalDetails = signals
+                            ? `DCD:${signals.dcd?'1':'0'} DSR:${signals.dsr?'1':'0'} CTS:${signals.cts?'1':'0'}`
+                            : '';
+                    }
+
+                    // Labels differ for HTTP (requests vs lines)
+                    const countLabel = isHTTP ? 'Requests' : 'Lines';
+                    const lastLabel = isHTTP ? 'Last Req' : 'Last Line';
+                    const rateLabel = isHTTP ? 'Req/s' : 'Lines/s';
 
                     return `
                         <div class="channel-card">
@@ -1235,33 +1259,33 @@
                             </div>
                             <div class="channel-stats">
                                 <div class="stat-item">
-                                    <div class="stat-label">Baud</div>
+                                    <div class="stat-label">${isHTTP ? 'Type' : 'Baud'}</div>
                                     <div class="stat-value">${baud}</div>
                                 </div>
                                 <div class="stat-item">
-                                    <div class="stat-label">Flow</div>
-                                    <div class="stat-value">${flow}</div>
+                                    <div class="stat-label">${isHTTP ? 'Port' : 'Flow'}</div>
+                                    <div class="stat-value">${isHTTP ? '8081' : flow}</div>
                                 </div>
                                 <div class="stat-item">
-                                    <div class="stat-label">Lines</div>
-                                    <div class="stat-value">${formatNumber(ch.stats.LinesRead)}</div>
+                                    <div class="stat-label">${countLabel}</div>
+                                    <div class="stat-value">${formatNumber(linesRead)}</div>
                                 </div>
                                 <div class="stat-item">
                                     <div class="stat-label">Bytes</div>
-                                    <div class="stat-value">${formatBytes(ch.stats.BytesRead)}</div>
+                                    <div class="stat-value">${formatBytes(bytesRead)}</div>
                                 </div>
                                 <div class="stat-item">
                                     <div class="stat-label">Errors</div>
-                                    <div class="stat-value">${ch.stats.Errors}</div>
+                                    <div class="stat-value">${errors}</div>
                                 </div>
                                 <div class="stat-item">
-                                    <div class="stat-label">Last Line</div>
+                                    <div class="stat-label">${lastLabel}</div>
                                     <div class="stat-value">${lastLine}</div>
                                 </div>
                             </div>
                             <div class="sparkline-container">
                                 <div class="sparkline-row">
-                                    <span class="sparkline-label">Lines/s</span>
+                                    <span class="sparkline-label">${rateLabel}</span>
                                     <span class="sparkline-value">${formatRate(currentLinesPerSec, '/s')}</span>
                                     ${generateSparkline(history.linesPerSec)}
                                 </div>
@@ -1275,9 +1299,15 @@
                     `;
                 }).join('');
 
-                const totalLines = data.channels.reduce((sum, ch) => sum + ch.stats.LinesRead, 0);
-                const totalBytes = data.channels.reduce((sum, ch) => sum + ch.stats.BytesRead, 0);
-                const totalErrors = data.channels.reduce((sum, ch) => sum + ch.stats.Errors, 0);
+                const totalLines = data.channels.reduce((sum, ch) => {
+                    return sum + (ch.type === 'http' ? (ch.stats.requests || 0) : (ch.stats.LinesRead || 0));
+                }, 0);
+                const totalBytes = data.channels.reduce((sum, ch) => {
+                    return sum + (ch.type === 'http' ? (ch.stats.bytes_read || 0) : (ch.stats.BytesRead || 0));
+                }, 0);
+                const totalErrors = data.channels.reduce((sum, ch) => {
+                    return sum + (ch.type === 'http' ? (ch.stats.errors || 0) : (ch.stats.Errors || 0));
+                }, 0);
                 const totalReconnects = data.channels.reduce((sum, ch) => sum + (ch.stats.Reconnects || 0), 0);
                 const activeChannels = data.channels.filter(ch => ch.state === 'running').length;
                 const noSignalChannels = data.channels.filter(ch => ch.state === 'no_signal').length;
@@ -1312,6 +1342,14 @@
                 // Calculate session uptime
                 const sessionUptime = Math.floor((Date.now() - globalStats.startTime) / 1000);
                 const uptimeStr = formatUptime(sessionUptime);
+
+                // NATS stats - now from JetStream streams
+                const nats = window.natsStats || {};
+                const streams = nats.streams || {};
+                const cdrStream = streams.cdr || { messages: 0, bytes: 0 };
+                const healthStream = streams.health || { messages: 0, bytes: 0 };
+                const eventsStream = streams.events || { messages: 0, bytes: 0 };
+                const natsReconnects = nats.reconnects || 0;
 
                 document.getElementById('stats-container').innerHTML = `
                     <div class="channel-stats" style="grid-template-columns: repeat(3, 1fr);">
@@ -1350,6 +1388,31 @@
                             <span class="sparkline-label">Data</span>
                             <span class="sparkline-value">${formatBytesPerSec(totalBytesPerSec)}</span>
                             ${generateSparkline(aggregateBytesHistory)}
+                        </div>
+                    </div>
+                    <div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid #eee;">
+                        <div style="font-size: 0.8em; color: #7f8c8d; margin-bottom: 8px;">NATS JetStream (Total in Streams)</div>
+                        <div class="channel-stats" style="grid-template-columns: repeat(3, 1fr);">
+                            <div class="stat-item">
+                                <div class="stat-label">CDR Msgs</div>
+                                <div class="stat-value">${formatNumber(cdrStream.messages)}</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">CDR Data</div>
+                                <div class="stat-value">${formatBytes(cdrStream.bytes)}</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">Health</div>
+                                <div class="stat-value">${formatNumber(healthStream.messages)}</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">Events</div>
+                                <div class="stat-value">${formatNumber(eventsStream.messages)}</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">Reconnects</div>
+                                <div class="stat-value" style="color: ${natsReconnects > 0 ? '#f39c12' : '#2c3e50'}">${natsReconnects}</div>
+                            </div>
                         </div>
                     </div>
                 `;

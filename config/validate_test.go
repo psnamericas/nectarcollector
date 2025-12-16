@@ -147,9 +147,9 @@ func TestValidatePortConfig(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "invalid a_designation B1",
+			name:    "valid a_designation B1",
 			modify:  func(c *Config) { c.Ports[0].ADesignation = "B1" },
-			wantErr: true,
+			wantErr: false,
 		},
 		{
 			name:    "valid a_designation A16",
@@ -203,6 +203,119 @@ func TestValidatePortConfig(t *testing.T) {
 			name:    "invalid port fips_code",
 			modify:  func(c *Config) { c.Ports[0].FIPSCode = "invalid" },
 			wantErr: true,
+		},
+		// HTTP port tests
+		{
+			name: "valid http port",
+			modify: func(c *Config) {
+				c.Ports[0] = PortConfig{
+					Type:         PortTypeHTTP,
+					Path:         "/cdr",
+					ADesignation: "A1",
+					Enabled:      true,
+				}
+			},
+			wantErr: false,
+		},
+		{
+			name: "http port missing path",
+			modify: func(c *Config) {
+				c.Ports[0] = PortConfig{
+					Type:         PortTypeHTTP,
+					Path:         "",
+					ADesignation: "A1",
+					Enabled:      true,
+				}
+			},
+			wantErr: true,
+		},
+		{
+			name: "http port path without leading slash",
+			modify: func(c *Config) {
+				c.Ports[0] = PortConfig{
+					Type:         PortTypeHTTP,
+					Path:         "cdr",
+					ADesignation: "A1",
+					Enabled:      true,
+				}
+			},
+			wantErr: true,
+		},
+		{
+			name: "http port with valid listen_port",
+			modify: func(c *Config) {
+				c.Ports[0] = PortConfig{
+					Type:         PortTypeHTTP,
+					Path:         "/cdr",
+					ListenPort:   8081,
+					ADesignation: "A1",
+					Enabled:      true,
+				}
+			},
+			wantErr: false,
+		},
+		{
+			name: "http port with invalid listen_port too high",
+			modify: func(c *Config) {
+				c.Ports[0] = PortConfig{
+					Type:         PortTypeHTTP,
+					Path:         "/cdr",
+					ListenPort:   65536,
+					ADesignation: "A1",
+					Enabled:      true,
+				}
+			},
+			wantErr: true,
+		},
+		{
+			name: "http port with invalid listen_port negative",
+			modify: func(c *Config) {
+				c.Ports[0] = PortConfig{
+					Type:         PortTypeHTTP,
+					Path:         "/cdr",
+					ListenPort:   -1,
+					ADesignation: "A1",
+					Enabled:      true,
+				}
+			},
+			wantErr: true,
+		},
+		{
+			name: "duplicate http paths on same port",
+			modify: func(c *Config) {
+				c.Ports = []PortConfig{
+					{Type: PortTypeHTTP, Path: "/cdr", ListenPort: 8081, ADesignation: "A1", Enabled: true},
+					{Type: PortTypeHTTP, Path: "/cdr", ListenPort: 8081, ADesignation: "A2", Enabled: true},
+				}
+			},
+			wantErr: true,
+		},
+		{
+			name: "same http path on different ports is ok",
+			modify: func(c *Config) {
+				c.Ports = []PortConfig{
+					{Type: PortTypeHTTP, Path: "/cdr", ListenPort: 8081, ADesignation: "A1", Enabled: true},
+					{Type: PortTypeHTTP, Path: "/cdr", ListenPort: 8082, ADesignation: "A2", Enabled: true},
+				}
+			},
+			wantErr: false,
+		},
+		{
+			name: "invalid port type",
+			modify: func(c *Config) {
+				c.Ports[0].Type = "invalid"
+			},
+			wantErr: true,
+		},
+		{
+			name: "mixed serial and http ports",
+			modify: func(c *Config) {
+				c.Ports = []PortConfig{
+					{Type: PortTypeSerial, Device: "/dev/ttyS1", ADesignation: "A1", Enabled: true},
+					{Type: PortTypeHTTP, Path: "/cdr", ListenPort: 8081, ADesignation: "A2", Enabled: true},
+				}
+			},
+			wantErr: false,
 		},
 	}
 
@@ -496,7 +609,7 @@ func TestADesignationPattern(t *testing.T) {
 		}
 	}
 
-	invalid := []string{"A0", "A17", "A100", "B1", "a1", "1A", "A", ""}
+	invalid := []string{"A0", "A17", "A100", "B17", "C1", "a1", "1A", "A", ""}
 	for _, s := range invalid {
 		if aDesignationPattern.MatchString(s) {
 			t.Errorf("Expected %q to be an invalid A designation", s)

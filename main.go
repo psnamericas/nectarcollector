@@ -65,16 +65,16 @@ func main() {
 	// Create capture manager
 	manager := capture.NewManager(cfg, logger)
 
-	// Start monitoring server
-	monServer := monitoring.NewServer(&cfg.Monitoring, manager, cfg.Logging.BasePath, logger)
-	if err := monServer.Start(); err != nil {
-		logger.Error("Failed to start monitoring server", "error", err)
+	// Start capture channels first (creates HTTP channels we need for routing)
+	if err := manager.Start(ctx); err != nil {
+		logger.Error("Failed to start capture manager", "error", err)
 		os.Exit(1)
 	}
 
-	// Start capture channels
-	if err := manager.Start(ctx); err != nil {
-		logger.Error("Failed to start capture manager", "error", err)
+	// Start monitoring server (registers HTTP channels for routing)
+	monServer := monitoring.NewServer(&cfg.Monitoring, manager, cfg.Logging.BasePath, logger)
+	if err := monServer.Start(); err != nil {
+		logger.Error("Failed to start monitoring server", "error", err)
 		os.Exit(1)
 	}
 

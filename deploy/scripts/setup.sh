@@ -253,6 +253,17 @@ phase_users() {
         log OK "Password set for 'psna'"
     fi
 
+    # Prompt to change root password
+    if confirm "Change root password? (recommended for security)"; then
+        log INFO "Changing root password"
+        local root_password
+        root_password=$(prompt_password "Enter new password for root")
+        echo "root:$root_password" | chpasswd
+        log OK "Root password changed"
+    else
+        log WARN "Root password unchanged - remember to change it manually!"
+    fi
+
     # Create nectarcollector service user
     if id "nectarcollector" &>/dev/null; then
         log OK "Service user 'nectarcollector' already exists"
@@ -293,6 +304,15 @@ phase_tailscale() {
         local ts_ip
         ts_ip=$(tailscale ip -4 2>/dev/null || echo "unknown")
         log OK "Tailscale already connected: $ts_ip"
+
+        # Update Tailscale hostname to match system hostname
+        local current_ts_hostname
+        current_ts_hostname=$(tailscale status --json 2>/dev/null | jq -r '.Self.HostName // ""')
+        if [[ "$current_ts_hostname" != "$(hostname)" ]]; then
+            log INFO "Updating Tailscale hostname to: $(hostname)"
+            tailscale set --hostname="$(hostname)"
+            log OK "Tailscale hostname updated"
+        fi
     else
         # Authenticate
         log INFO "Starting Tailscale authentication"
@@ -539,9 +559,10 @@ phase_nats() {
     mkdir -p /var/lib/nectarcollector/nats
     mkdir -p /var/log/nectarcollector
     chown -R nats:nats /var/lib/nectarcollector/nats
-    # Log dir needs to be writable by both nats and nectarcollector users
-    chown root:root /var/log/nectarcollector
-    chmod 777 /var/log/nectarcollector
+    # Log dir writable by both nats and nectarcollector
+    chown nectarcollector:nectarcollector /var/log/nectarcollector
+    chmod 775 /var/log/nectarcollector
+    usermod -a -G nectarcollector nats 2>/dev/null || true
 
     # Create NATS config
     log INFO "Creating NATS configuration..."
@@ -692,8 +713,10 @@ phase_nectarcollector() {
         # Check for pre-built binary
         local binary_path=""
         for path in \
+            "${SCRIPT_DIR}/nectarcollector" \
             "${SCRIPT_DIR}/../nectarcollector" \
             "${SCRIPT_DIR}/../../nectarcollector" \
+            "/opt/nectarcollector/nectarcollector" \
             "/tmp/nectarcollector" \
             "./nectarcollector"; do
             if [[ -f "$path" ]] && [[ -x "$path" ]]; then
@@ -795,29 +818,97 @@ generate_config_from_simple() {
     state_prefix="${state_prefix:-xx}"
 
     # Build ports array from simple list
+    # Ports can be either strings (e.g., "ttyS1") or objects:
+    #   Serial: {"device": "ttyS1", "designation": "B1"}
+    #   HTTP:   {"type": "http", "path": "/NetworkLogger/Primary/Recorder", "listen_port": 8081, "designation": "B2"}
     local ports_json="[]"
     local designation=1
-    for port in $(jq -r '.ports[]' "$setup_config"); do
-        # Add /dev/ prefix if not present
-        [[ "$port" != /dev/* ]] && port="/dev/$port"
+    local port_count
+    port_count=$(jq '.ports | length' "$setup_config")
 
-        local port_json
-        port_json=$(jq -n \
-            --arg dev "$port" \
-            --arg a_des "A$designation" \
-            --arg fips "$fips_code" \
-            --arg vendor "$vendor" \
-            --arg county "$county" \
-            '{
-                device: $dev,
-                a_designation: $a_des,
-                fips_code: $fips,
-                vendor: $vendor,
-                county: $county,
-                baud_rate: 0,
-                enabled: true,
-                description: "CDR feed"
-            }')
+    for i in $(seq 0 $((port_count - 1))); do
+        local port_type port_json
+
+        # Check if port is a string or object
+        if jq -e ".ports[$i] | type == \"string\"" "$setup_config" &>/dev/null; then
+            # Simple string format - serial port
+            local port
+            port=$(jq -r ".ports[$i]" "$setup_config")
+            [[ "$port" != /dev/* ]] && port="/dev/$port"
+
+            port_json=$(jq -n \
+                --arg dev "$port" \
+                --arg a_des "A$designation" \
+                --arg fips "$fips_code" \
+                --arg vendor "$vendor" \
+                --arg county "$county" \
+                '{
+                    device: $dev,
+                    a_designation: $a_des,
+                    fips_code: $fips,
+                    vendor: $vendor,
+                    county: $county,
+                    baud_rate: 0,
+                    enabled: true,
+                    description: "CDR feed"
+                }')
+        else
+            # Object format - check type
+            port_type=$(jq -r ".ports[$i].type // \"serial\"" "$setup_config")
+
+            if [[ "$port_type" == "http" ]]; then
+                # HTTP port
+                local path listen_port port_des port_vendor
+                path=$(jq -r ".ports[$i].path" "$setup_config")
+                listen_port=$(jq -r ".ports[$i].listen_port // 0" "$setup_config")
+                port_des=$(jq -r ".ports[$i].designation // \"A$designation\"" "$setup_config")
+                port_vendor=$(jq -r ".ports[$i].vendor // \"$vendor\"" "$setup_config")
+
+                port_json=$(jq -n \
+                    --arg type "http" \
+                    --arg path "$path" \
+                    --argjson listen_port "$listen_port" \
+                    --arg a_des "$port_des" \
+                    --arg fips "$fips_code" \
+                    --arg vendor "$port_vendor" \
+                    --arg county "$county" \
+                    '{
+                        type: $type,
+                        path: $path,
+                        listen_port: $listen_port,
+                        a_designation: $a_des,
+                        fips_code: $fips,
+                        vendor: $vendor,
+                        county: $county,
+                        enabled: true,
+                        description: "HTTP CDR endpoint"
+                    }')
+            else
+                # Serial port (object format)
+                local port port_des
+                port=$(jq -r ".ports[$i].device" "$setup_config")
+                port_des=$(jq -r ".ports[$i].designation // \"A$designation\"" "$setup_config")
+                [[ "$port" != /dev/* ]] && port="/dev/$port"
+
+                port_json=$(jq -n \
+                    --arg dev "$port" \
+                    --arg a_des "$port_des" \
+                    --arg fips "$fips_code" \
+                    --arg vendor "$vendor" \
+                    --arg county "$county" \
+                    '{
+                        device: $dev,
+                        a_designation: $a_des,
+                        fips_code: $fips,
+                        vendor: $vendor,
+                        county: $county,
+                        baud_rate: 0,
+                        enabled: true,
+                        description: "CDR feed"
+                    }')
+            fi
+        fi
+
         ports_json=$(echo "$ports_json" | jq --argjson port "$port_json" '. += [$port]')
         ((designation++))
     done
@@ -872,8 +963,11 @@ phase_nectarcollector_config() {
 
     # Check for config file
     if [[ -n "$CONFIG_FILE" ]] && [[ -f "$CONFIG_FILE" ]]; then
-        # Check config format: simple (has "ports" array of strings) or full (has "nectarcollector_config" or "app")
-        if jq -e '.ports[0] | type == "string"' "$CONFIG_FILE" &>/dev/null; then
+        # Check config format:
+        # - Simple: has "hostname" field (setup config)
+        # - Full: has "app" section (nectarcollector config)
+        # - Legacy: has "nectarcollector_config" wrapper
+        if jq -e '.hostname' "$CONFIG_FILE" &>/dev/null; then
             # Simple format - generate full config
             log INFO "Generating NectarCollector config from simple setup config"
             generate_config_from_simple "$CONFIG_FILE"

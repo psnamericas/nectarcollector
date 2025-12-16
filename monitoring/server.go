@@ -137,6 +137,7 @@ type Server struct {
 	manager     *capture.Manager
 	logger      *slog.Logger
 	server      *http.Server
+	httpServers []*http.Server // Additional servers for HTTP capture on custom ports
 	logBasePath string
 	broker      *SSEBroker
 	ctx         context.Context
@@ -283,11 +284,40 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/stream", s.handleSSE)
 	mux.HandleFunc("/api/events", s.handleEvents)
 
-	// Wrap with basic auth if configured
-	var handler http.Handler = mux
+	// Group HTTP channels by listen port
+	httpChannels := s.manager.GetHTTPChannels()
+	mainPortChannels := make([]*capture.HTTPChannel, 0)
+	customPortChannels := make(map[int][]*capture.HTTPChannel)
+
+	for _, ch := range httpChannels {
+		cfg := ch.Config()
+		if cfg.ListenPort == 0 || cfg.ListenPort == s.config.Port {
+			// Use main monitoring port
+			mainPortChannels = append(mainPortChannels, ch)
+		} else {
+			// Custom port
+			customPortChannels[cfg.ListenPort] = append(customPortChannels[cfg.ListenPort], ch)
+		}
+	}
+
+	// Register channels on main port
+	for _, ch := range mainPortChannels {
+		path := ch.Path()
+		s.logger.Info("Registering HTTP capture endpoint",
+			"path", path,
+			"port", s.config.Port,
+			"designation", ch.ADesignation())
+		mux.Handle(path, ch)
+	}
+
+	// Create handler that applies auth selectively
+	var handler http.Handler
 	if s.config.Username != "" && s.config.Password != "" {
-		handler = s.basicAuth(mux)
-		s.logger.Info("Basic auth enabled for HoneyView")
+		// Apply auth to everything except HTTP capture endpoints
+		handler = s.selectiveAuth(mux, mainPortChannels)
+		s.logger.Info("Basic auth enabled for HoneyView (CDR endpoints excluded)")
+	} else {
+		handler = mux
 	}
 
 	addr := fmt.Sprintf(":%d", s.config.Port)
@@ -304,7 +334,73 @@ func (s *Server) Start() error {
 		}
 	}()
 
+	// Start separate servers for HTTP channels with custom ports
+	for port, channels := range customPortChannels {
+		if err := s.startHTTPCaptureServer(port, channels); err != nil {
+			s.logger.Error("Failed to start HTTP capture server", "port", port, "error", err)
+			// Continue with other ports - don't fail entirely
+		}
+	}
+
 	return nil
+}
+
+// startHTTPCaptureServer starts a dedicated HTTP server for capture endpoints on a custom port
+func (s *Server) startHTTPCaptureServer(port int, channels []*capture.HTTPChannel) error {
+	mux := http.NewServeMux()
+
+	for _, ch := range channels {
+		path := ch.Path()
+		s.logger.Info("Registering HTTP capture endpoint",
+			"path", path,
+			"port", port,
+			"designation", ch.ADesignation())
+		mux.Handle(path, ch)
+	}
+
+	addr := fmt.Sprintf(":%d", port)
+	server := &http.Server{
+		Addr:    addr,
+		Handler: mux,
+	}
+
+	s.httpServers = append(s.httpServers, server)
+
+	s.logger.Info("Starting HTTP capture server", "port", port, "endpoints", len(channels))
+
+	go func() {
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			s.logger.Error("HTTP capture server error", "port", port, "error", err)
+		}
+	}()
+
+	return nil
+}
+
+// selectiveAuth applies basic auth except for CDR ingestion endpoints
+func (s *Server) selectiveAuth(next http.Handler, httpChannels []*capture.HTTPChannel) http.Handler {
+	// Build set of paths that don't need auth
+	noAuthPaths := make(map[string]bool)
+	for _, ch := range httpChannels {
+		noAuthPaths[ch.Path()] = true
+	}
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Skip auth for CDR ingestion endpoints
+		if noAuthPaths[r.URL.Path] {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		// Apply basic auth for everything else
+		user, pass, ok := r.BasicAuth()
+		if !ok || user != s.config.Username || pass != s.config.Password {
+			w.Header().Set("WWW-Authenticate", `Basic realm="HoneyView"`)
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // basicAuth wraps a handler with HTTP Basic Authentication
@@ -322,14 +418,34 @@ func (s *Server) basicAuth(next http.Handler) http.Handler {
 
 // Stop gracefully stops the monitoring server
 func (s *Server) Stop(ctx context.Context) error {
-	// Cancel broker and watchers
+	// Cancel broker and watchers first - this closes SSE client connections
 	s.cancel()
 
+	// Use a shorter timeout for HTTP shutdown (5 seconds max)
+	// SSE connections should close quickly once broker signals them
+	shutdownCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	var lastErr error
+
+	// Shutdown additional HTTP capture servers
+	for _, server := range s.httpServers {
+		s.logger.Info("Stopping HTTP capture server", "addr", server.Addr)
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			s.logger.Error("Error stopping HTTP capture server", "addr", server.Addr, "error", err)
+			lastErr = err
+		}
+	}
+
+	// Shutdown main monitoring server
 	if s.server != nil {
 		s.logger.Info("Stopping HoneyView monitoring server")
-		return s.server.Shutdown(ctx)
+		if err := s.server.Shutdown(shutdownCtx); err != nil {
+			lastErr = err
+		}
 	}
-	return nil
+
+	return lastErr
 }
 
 // handleDashboard serves the HoneyView dashboard

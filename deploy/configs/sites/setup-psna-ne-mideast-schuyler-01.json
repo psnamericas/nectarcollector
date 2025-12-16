@@ -1,0 +1,9 @@
+{
+  "hostname": "psna-ne-mideast-schuyler-01",
+  "fips_code": "1314010002",
+  "vendor": "viper",
+  "county": "schuyler",
+  "ports": [{"device": "ttyS1", "designation": "B1"}],
+  "dashboard_user": "psna",
+  "dashboard_pass": "nectar2025"
+}

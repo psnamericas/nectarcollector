@@ -29,8 +29,8 @@ var (
 		"error": true,
 	}
 
-	// A designation pattern: A1 through A16
-	aDesignationPattern = regexp.MustCompile(`^A([1-9]|1[0-6])$`)
+	// A/B designation pattern: A1-A16 or B1-B16
+	aDesignationPattern = regexp.MustCompile(`^[AB]([1-9]|1[0-6])$`)
 
 	// FIPS code pattern: 10 digits
 	fipsCodePattern = regexp.MustCompile(`^\d{10}$`)
@@ -92,45 +92,77 @@ func (c *Config) validatePorts() error {
 
 	enabledCount := 0
 	devicesSeen := make(map[string]bool)
+	pathsSeen := make(map[string]bool)
 	aDesignationsSeen := make(map[string]bool)
 
 	for i, port := range c.Ports {
-		// Check device
-		if port.Device == "" {
-			return fmt.Errorf("port %d: device is required", i)
+		// Validate port type
+		if port.Type != "" && port.Type != PortTypeSerial && port.Type != PortTypeHTTP {
+			return fmt.Errorf("port %d: invalid type %q, must be %q or %q", i, port.Type, PortTypeSerial, PortTypeHTTP)
 		}
 
-		// Check for duplicate devices
-		if devicesSeen[port.Device] {
-			return fmt.Errorf("port %d: duplicate device %s", i, port.Device)
+		// Port identifier for error messages
+		portID := port.Device
+		if port.IsHTTP() {
+			portID = port.Path
 		}
-		devicesSeen[port.Device] = true
 
-		// Check A designation
+		// Type-specific validation
+		if port.IsSerial() {
+			// Serial port requires device
+			if port.Device == "" {
+				return fmt.Errorf("port %d: device is required for serial ports", i)
+			}
+			// Check for duplicate devices
+			if devicesSeen[port.Device] {
+				return fmt.Errorf("port %d: duplicate device %s", i, port.Device)
+			}
+			devicesSeen[port.Device] = true
+
+			// Validate baud rate if specified
+			if port.BaudRate != 0 && !validBaudRates[port.BaudRate] {
+				return fmt.Errorf("port %d (%s): invalid baud_rate %d, must be one of: 300, 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200",
+					i, port.Device, port.BaudRate)
+			}
+		} else if port.IsHTTP() {
+			// HTTP port requires path
+			if port.Path == "" {
+				return fmt.Errorf("port %d: path is required for HTTP ports", i)
+			}
+			if !strings.HasPrefix(port.Path, "/") {
+				return fmt.Errorf("port %d: path must start with /, got: %s", i, port.Path)
+			}
+			// Validate listen_port if specified
+			if port.ListenPort != 0 && (port.ListenPort < 1 || port.ListenPort > 65535) {
+				return fmt.Errorf("port %d: listen_port must be between 1 and 65535, got: %d", i, port.ListenPort)
+			}
+			// Check for duplicate paths (on same listen port)
+			pathKey := fmt.Sprintf("%d:%s", port.ListenPort, port.Path)
+			if pathsSeen[pathKey] {
+				return fmt.Errorf("port %d: duplicate path %s on port %d", i, port.Path, port.ListenPort)
+			}
+			pathsSeen[pathKey] = true
+		}
+
+		// Check A designation (required for all types)
 		if port.ADesignation == "" {
-			return fmt.Errorf("port %d (%s): a_designation is required", i, port.Device)
+			return fmt.Errorf("port %d (%s): a_designation is required", i, portID)
 		}
 		if !aDesignationPattern.MatchString(port.ADesignation) {
-			return fmt.Errorf("port %d (%s): a_designation must be A1-A16, got: %s", i, port.Device, port.ADesignation)
+			return fmt.Errorf("port %d (%s): a_designation must be A1-A16 or B1-B16, got: %s", i, portID, port.ADesignation)
 		}
 
 		// Check for duplicate A designations (among enabled ports)
 		if port.Enabled && aDesignationsSeen[port.ADesignation] {
-			return fmt.Errorf("port %d (%s): duplicate a_designation %s among enabled ports", i, port.Device, port.ADesignation)
+			return fmt.Errorf("port %d (%s): duplicate a_designation %s among enabled ports", i, portID, port.ADesignation)
 		}
 		if port.Enabled {
 			aDesignationsSeen[port.ADesignation] = true
 		}
 
-		// Validate baud rate if specified
-		if port.BaudRate != 0 && !validBaudRates[port.BaudRate] {
-			return fmt.Errorf("port %d (%s): invalid baud_rate %d, must be one of: 300, 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200",
-				i, port.Device, port.BaudRate)
-		}
-
 		// Validate FIPS code if specified
 		if port.FIPSCode != "" && !fipsCodePattern.MatchString(port.FIPSCode) {
-			return fmt.Errorf("port %d (%s): fips_code must be 10 digits, got: %s", i, port.Device, port.FIPSCode)
+			return fmt.Errorf("port %d (%s): fips_code must be 10 digits, got: %s", i, portID, port.FIPSCode)
 		}
 
 		if port.Enabled {

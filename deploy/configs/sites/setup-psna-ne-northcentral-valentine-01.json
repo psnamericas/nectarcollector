@@ -1,0 +1,9 @@
+{
+  "hostname": "psna-ne-northcentral-valentine-01",
+  "fips_code": "1318880001",
+  "vendor": "solacom",
+  "county": "valentine",
+  "ports": [{"device": "ttyS1", "designation": "A1"}],
+  "dashboard_user": "psna",
+  "dashboard_pass": "nectar2025"
+}

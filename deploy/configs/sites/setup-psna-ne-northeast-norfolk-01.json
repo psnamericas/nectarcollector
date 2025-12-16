@@ -1,0 +1,9 @@
+{
+  "hostname": "psna-ne-northeast-norfolk-01",
+  "fips_code": "1315010001",
+  "vendor": "viper",
+  "county": "norfolk",
+  "ports": [{"device": "ttyS2", "designation": "A1"}],
+  "dashboard_user": "psna",
+  "dashboard_pass": "nectar2025"
+}

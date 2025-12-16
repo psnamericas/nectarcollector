@@ -1,30 +1,36 @@
 # NectarCollector
 
-A Go service that captures serial data from multiple ports concurrently, with automatic baud rate and pinout detection, streaming to both rotating log files and NATS JetStream.
+A Go service that captures CDR (Call Detail Record) data from multiple sources concurrently, with automatic baud rate detection for serial ports and HTTP POST ingestion support. Data streams to both rotating log files and NATS JetStream.
 
 ## Features
 
-- **Multi-Port Capture**: Concurrent capture from multiple serial ports (one goroutine per port)
-- **Auto-Detection**: Automatic baud rate detection (300-115200) and pinout resolution (null modem vs straight-through)
+- **Multi-Source Capture**: Concurrent capture from serial ports and HTTP POST endpoints
+- **Serial Auto-Detection**: Automatic baud rate detection (300-115200) for serial ports
+- **HTTP POST Ingestion**: Accept CDR data via HTTP POST requests (for IP-based CDR systems like ECW)
 - **Dual Output**: Simultaneous logging to rotating files and NATS JetStream streaming
 - **Header Format**: Prepends `[FIPSCODE][A1-16][YYYY-MM-DD HH:MM:SS.mmm]` to each line
+- **Health Monitoring**: Periodic health heartbeats to NATS with channel status
+- **Event Tracking**: Service lifecycle events (start, stop, reconnect) published to NATS
+- **HoneyView Dashboard**: Real-time web dashboard with SSE streaming and JetStream stats
 - **Reliable Operation**: Automatic reconnection with exponential backoff, graceful shutdown
 - **Configurable**: JSON configuration for all settings
 
 ## Architecture
 
 ```
-Serial Port → Detection (autobaud + pinout) → Reader
-    → Line-by-line processing → Header construction
-    → Dual Writer (log file + NATS JetStream)
+Serial Port → Detection (autobaud) → Reader → Line Processing → Header → DualWriter
+HTTP POST   → Request Handler      →                          → Header → DualWriter
+                                                                            ↓
+                                                               Log File + NATS JetStream
 ```
 
 ### Components
 
 - **config/**: Configuration structs, JSON loading, validation
 - **serial/**: Reader interface, RealReader implementation, auto-detection algorithms
-- **output/**: Header construction, DualWriter (log + NATS), NATS connection management
-- **capture/**: Channel (per-port state machine), Manager (orchestration)
+- **output/**: Header construction, DualWriter (log + NATS), NATS connection, health/event publishers
+- **capture/**: Channel (serial), HTTPChannel (HTTP POST), Manager (orchestration)
+- **monitoring/**: HoneyView dashboard, REST API, SSE streaming
 - **main.go**: Entry point, signal handling, graceful shutdown
 
 ## Installation
@@ -53,15 +59,22 @@ Create a configuration file (see `configs/example-config.json`):
       "device": "/dev/ttyUSB0",
       "a_designation": "A1",
       "enabled": true,
-      "description": "Primary feed - auto-detect all"
+      "description": "Serial feed - auto-detect baud rate"
     },
     {
       "device": "/dev/ttyUSB1",
       "a_designation": "A2",
       "baud_rate": 9600,
-      "use_flow_control": false,
       "enabled": true,
-      "description": "Secondary - manual config, skip detection"
+      "description": "Serial feed - fixed baud rate"
+    },
+    {
+      "type": "http",
+      "path": "/NetworkLogger/Primary/Recorder",
+      "listen_port": 8081,
+      "a_designation": "B1",
+      "enabled": true,
+      "description": "HTTP POST endpoint for ECW"
     }
   ],
   "detection": {
@@ -119,9 +132,9 @@ Where:
 - `A1` = A designation (A1-A16, configurable per port)
 - `2025-12-03 15:04:05.123` = UTC timestamp with milliseconds
 
-## Auto-Detection Algorithms
+## Capture Modes
 
-### Autobaud Detection
+### Serial Capture (Auto-Detection)
 
 1. Try each baud rate (300, 1200, ..., 115200) sequentially
 2. Read data for 5 seconds (configurable)
@@ -130,13 +143,13 @@ Where:
 5. Success if ratio ≥ 0.80 AND bytes ≥ 50
 6. Lock in baud rate or try next
 
-### Pinout Detection
+### HTTP POST Capture
 
-1. Test with RTS/CTS flow control enabled
-2. If data received → straight-through cable detected
-3. Otherwise, test without flow control
-4. If data received → null modem cable detected
-5. Fail if no data with either setting
+For IP-based CDR systems (e.g., ECW NetworkLogger):
+1. Listen on configured port (e.g., 8081)
+2. Accept POST requests at configured path
+3. Extract body content and prepend header
+4. Write to log file and NATS (same as serial)
 
 ## Log Files
 
@@ -149,13 +162,29 @@ Per-port rotating log files are written using FIPS code and A-designation format
 
 Rotation is automatic based on size (default 100MB per file, 10 backups).
 
-## NATS Topics
+## NATS Streams
 
-Each serial port publishes to its own NATS JetStream subject using FIPS-A format:
+NectarCollector publishes to three JetStream streams:
+
+### CDR Stream
+Each channel publishes CDR data to its own subject:
 ```
-serial.1429010002-A1
-serial.1429010002-A2
-...
+{state}.cdr.{vendor}.{fips_code}
+# Example: ne.cdr.viper.1314010001
+```
+
+### Health Stream
+Periodic heartbeats (default 60s) with channel status:
+```
+{state}.health.{instance_id}
+# Example: ne.health.psna-ne-kearney-01
+```
+
+### Events Stream
+Service lifecycle events (start, stop, reconnect, errors):
+```
+{state}.events.{instance_id}
+# Example: ne.events.psna-ne-kearney-01
 ```
 
 ## Error Handling

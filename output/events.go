@@ -40,7 +40,7 @@ type EventCallback func(event Event)
 // EventPublisher publishes discrete events to NATS JetStream.
 // It's designed to be optional - if nil, nothing breaks.
 type EventPublisher struct {
-	conn       *nats.Conn
+	conn       *NATSConnection
 	subject    string
 	instanceID string
 	logger     *slog.Logger
@@ -48,7 +48,7 @@ type EventPublisher struct {
 
 // EventPublisherConfig contains configuration for EventPublisher
 type EventPublisherConfig struct {
-	Conn       *nats.Conn
+	Conn       *NATSConnection
 	Subject    string // e.g., "ne.events.psna-ne-kearney-01"
 	InstanceID string
 	Logger     *slog.Logger

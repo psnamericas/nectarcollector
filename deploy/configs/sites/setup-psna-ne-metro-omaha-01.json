@@ -1,0 +1,9 @@
+{
+  "hostname": "psna-ne-metro-omaha-01",
+  "fips_code": "1314010004",
+  "vendor": "viper",
+  "county": "omaha",
+  "ports": [{"device": "ttyS1", "designation": "A1"}],
+  "dashboard_user": "psna",
+  "dashboard_pass": "nectar2025"
+}

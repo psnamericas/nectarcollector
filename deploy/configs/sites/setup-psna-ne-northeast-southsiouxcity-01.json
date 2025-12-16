@@ -1,0 +1,11 @@
+{
+  "hostname": "psna-ne-northeast-southsiouxcity-01",
+  "fips_code": "1315010001",
+  "vendor": "ecw",
+  "county": "southsiouxcity",
+  "ports": [
+    {"type": "http", "path": "/NetworkLogger/Primary/Recorder", "listen_port": 8081, "designation": "B1"}
+  ],
+  "dashboard_user": "psna",
+  "dashboard_pass": "nectar2025"
+}

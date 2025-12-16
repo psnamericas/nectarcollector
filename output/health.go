@@ -5,14 +5,12 @@ import (
 	"log/slog"
 	"sync"
 	"time"
-
-	"github.com/nats-io/nats.go"
 )
 
 // HealthPublisher publishes periodic health heartbeats to NATS JetStream.
 // These heartbeats enable fleet-wide monitoring and alerting.
 type HealthPublisher struct {
-	conn       *nats.Conn
+	conn       *NATSConnection
 	subject    string
 	instanceID string
 	fipsCode   string
@@ -59,7 +57,7 @@ type HealthMessage struct {
 
 // HealthPublisherConfig contains configuration for HealthPublisher
 type HealthPublisherConfig struct {
-	Conn       *nats.Conn
+	Conn       *NATSConnection
 	Subject    string        // e.g., "ne.health.psna-ne-kearney-01"
 	InstanceID string        // e.g., "psna-ne-kearney-01"
 	FIPSCode   string        // e.g., "1314010001"
