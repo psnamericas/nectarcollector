@@ -422,6 +422,289 @@
         .metric-bar-fill.warn { background: #f39c12; }
         .metric-bar-fill.crit { background: #e74c3c; }
 
+        /* Port Config Panel */
+        .port-config-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 12px;
+        }
+        .port-config-card {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 14px;
+            border-left: 4px solid #FDB813;
+            transition: all 0.2s;
+            overflow: hidden;
+            min-width: 0;
+        }
+        .port-config-card.disabled {
+            border-left-color: #95a5a6;
+            opacity: 0.7;
+        }
+        .port-config-card.disabled .port-config-header {
+            opacity: 0.6;
+        }
+        .port-config-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            gap: 8px;
+        }
+        .port-config-header > div:first-child {
+            min-width: 0;
+            flex: 1;
+        }
+        .port-config-title {
+            font-weight: 700;
+            font-size: 1em;
+            color: #2c3e50;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .port-config-subtitle {
+            font-size: 0.8em;
+            color: #7f8c8d;
+            margin-top: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .port-config-type {
+            font-size: 0.7em;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .port-config-type.serial { background: #e8daef; color: #6c3483; }
+        .port-config-type.http { background: #d6eaf8; color: #2874a6; }
+        .port-config-details {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+            font-size: 0.85em;
+            margin-bottom: 12px;
+        }
+        .port-config-detail {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+            overflow: hidden;
+        }
+        .port-config-detail-label {
+            color: #7f8c8d;
+            font-size: 0.85em;
+        }
+        .port-config-detail-value {
+            font-weight: 600;
+            color: #2c3e50;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .port-config-actions {
+            display: flex;
+            gap: 8px;
+            padding-top: 10px;
+            border-top: 1px solid #e0e0e0;
+        }
+        .port-config-actions .btn {
+            flex: 1;
+        }
+
+        /* Port config header right side */
+        .port-config-header-right {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        /* Toggle Switch */
+        .toggle-switch {
+            position: relative;
+            width: 50px;
+            height: 26px;
+            flex-shrink: 0;
+        }
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: 0.3s;
+            border-radius: 26px;
+        }
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: 0.3s;
+            border-radius: 50%;
+        }
+        .toggle-switch input:checked + .toggle-slider {
+            background-color: #27ae60;
+        }
+        .toggle-switch input:checked + .toggle-slider:before {
+            transform: translateX(24px);
+        }
+        .toggle-switch input:disabled + .toggle-slider {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-overlay.active {
+            display: flex;
+        }
+        .modal {
+            background: white;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 450px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+        .modal-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .modal-header h3 {
+            margin: 0;
+            color: #2c3e50;
+            font-size: 1.1em;
+        }
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5em;
+            cursor: pointer;
+            color: #7f8c8d;
+            padding: 0;
+            line-height: 1;
+        }
+        .modal-close:hover {
+            color: #2c3e50;
+        }
+        .modal-body {
+            padding: 20px;
+        }
+        .modal-footer {
+            padding: 16px 20px;
+            border-top: 1px solid #eee;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+        .form-group {
+            margin-bottom: 16px;
+        }
+        .form-group:last-child {
+            margin-bottom: 0;
+        }
+        .form-label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: #2c3e50;
+            font-size: 0.9em;
+        }
+        .form-input, .form-select {
+            width: 100%;
+            padding: 10px 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 0.95em;
+            transition: border-color 0.2s;
+        }
+        .form-input:focus, .form-select:focus {
+            outline: none;
+            border-color: #FDB813;
+        }
+        .form-hint {
+            font-size: 0.8em;
+            color: #7f8c8d;
+            margin-top: 4px;
+        }
+        .btn-secondary {
+            background: #ecf0f1;
+            color: #2c3e50;
+        }
+        .btn-secondary:hover {
+            background: #d5dbdb;
+        }
+        .btn-success {
+            background: #27ae60;
+            color: white;
+        }
+        .btn-success:hover {
+            background: #219a52;
+        }
+
+        /* Toast notifications */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 2000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .toast {
+            padding: 12px 20px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 500;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            animation: slideIn 0.3s ease-out;
+            max-width: 350px;
+        }
+        .toast.success { background: #27ae60; }
+        .toast.error { background: #e74c3c; }
+        .toast.info { background: #3498db; }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes slideOut {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+        .toast.hiding {
+            animation: slideOut 0.3s ease-in forwards;
+        }
+
         /* Network Interface Cards */
         .net-card {
             background: #f8f9fa;
@@ -434,6 +717,11 @@
         .net-name {
             font-weight: 700;
             font-size: 0.9em;
+        }
+        .net-device {
+            font-size: 0.75em;
+            color: #95a5a6;
+            margin-top: 1px;
         }
         .net-ip {
             font-size: 0.8em;
@@ -836,6 +1124,16 @@
             </div>
         </div>
 
+        <div class="panel" style="width: 100%; margin-bottom: 12px;">
+            <h2 style="display: flex; justify-content: space-between; align-items: center;">
+                Port Configuration
+                <button class="btn btn-primary btn-sm" onclick="openAddPortModal()">+ Add Port</button>
+            </h2>
+            <div id="port-config-container" class="port-config-grid">
+                <div class="no-data">Loading port configuration...</div>
+            </div>
+        </div>
+
         <div class="events-panel">
             <h2>Event Log</h2>
             <div id="events-container" class="events-list">
@@ -916,6 +1214,274 @@
 
         <div class="footer">
             HoneyView | NectarCollector | Powered by 911 Logix
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <!-- Port Settings Modal -->
+    <div class="modal-overlay" id="port-settings-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="modal-title">Port Settings</h3>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="modal-port-id">
+                <input type="hidden" id="modal-port-type">
+                <input type="hidden" id="modal-mode" value="edit">
+
+                <!-- Common Identity Settings -->
+                <div class="form-group">
+                    <label class="form-label">A Designation</label>
+                    <input type="text" class="form-input" id="setting-a-designation" placeholder="e.g., A1, B2">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">FIPS Code (optional)</label>
+                    <input type="text" class="form-input" id="setting-fips-code" placeholder="Override default FIPS code">
+                    <div class="form-hint">Leave empty to use default</div>
+                </div>
+
+                <!-- Serial Port Settings -->
+                <div id="serial-settings">
+                    <div class="form-group" id="device-select-group">
+                        <label class="form-label">Device</label>
+                        <select class="form-select" id="setting-device">
+                            <option value="">Select device...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Baud Rate</label>
+                        <select class="form-select" id="setting-baud-rate" onchange="updateSettingsSerialParams()">
+                            <option value="0">Auto-detect</option>
+                            <option value="300">300</option>
+                            <option value="1200">1200</option>
+                            <option value="2400">2400</option>
+                            <option value="4800">4800</option>
+                            <option value="9600">9600</option>
+                            <option value="19200">19200</option>
+                            <option value="38400">38400</option>
+                            <option value="57600">57600</option>
+                            <option value="115200">115200</option>
+                        </select>
+                        <div class="form-hint">Auto-detect will probe baud rates automatically</div>
+                    </div>
+                    <!-- Serial params shown only when manual baud is selected -->
+                    <div id="setting-serial-params">
+                        <div class="form-group">
+                            <label class="form-label">Data Bits</label>
+                            <select class="form-select" id="setting-data-bits">
+                                <option value="5">5</option>
+                                <option value="6">6</option>
+                                <option value="7">7</option>
+                                <option value="8" selected>8</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Parity</label>
+                            <select class="form-select" id="setting-parity">
+                                <option value="none" selected>None</option>
+                                <option value="odd">Odd</option>
+                                <option value="even">Even</option>
+                                <option value="mark">Mark</option>
+                                <option value="space">Space</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Stop Bits</label>
+                            <select class="form-select" id="setting-stop-bits">
+                                <option value="1" selected>1</option>
+                                <option value="2">2</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Flow Control</label>
+                            <select class="form-select" id="setting-flow-control">
+                                <option value="auto">Auto-detect</option>
+                                <option value="true">Hardware (RTS/CTS)</option>
+                                <option value="false">None</option>
+                            </select>
+                            <div class="form-hint">Auto will try hardware flow control first</div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Vendor</label>
+                        <select class="form-select" id="setting-vendor">
+                            <option value="">Unknown</option>
+                            <option value="intrado">Intrado (Viper/Vesta)</option>
+                            <option value="motorola">Motorola</option>
+                            <option value="zetron">Zetron</option>
+                            <option value="positron">Positron</option>
+                            <option value="solacom">Solacom</option>
+                            <option value="plant">Plant CML</option>
+                            <option value="ecw">ECW</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- HTTP Port Settings -->
+                <div id="http-settings" class="hidden">
+                    <div class="form-group">
+                        <label class="form-label">Path</label>
+                        <input type="text" class="form-input" id="setting-path" placeholder="/cdr">
+                        <div class="form-hint">HTTP POST endpoint path (must start with /)</div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Listen Port</label>
+                        <input type="number" class="form-input" id="setting-listen-port" min="0" max="65535" placeholder="0 = use monitoring port">
+                        <div class="form-hint">0 = use same port as dashboard</div>
+                    </div>
+                </div>
+
+                <!-- Common Settings -->
+                <div class="form-group">
+                    <label class="form-label">County</label>
+                    <input type="text" class="form-input" id="setting-county" placeholder="e.g., lancaster, douglas">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Description</label>
+                    <input type="text" class="form-input" id="setting-description" placeholder="Optional description">
+                </div>
+            </div>
+            <div class="modal-footer" style="justify-content: space-between;">
+                <button class="btn btn-danger btn-sm" id="delete-port-btn" onclick="deletePort()" style="display: none;">Delete Port</button>
+                <div>
+                    <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                    <button class="btn btn-success" onclick="savePortSettings()">Save Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Port Modal -->
+    <div class="modal-overlay" id="add-port-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Add New Port</h3>
+                <button class="modal-close" onclick="closeAddModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Port Type</label>
+                    <select class="form-select" id="add-port-type" onchange="updateAddPortForm()">
+                        <option value="serial">Serial Port</option>
+                        <option value="http">HTTP Endpoint</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">A Designation *</label>
+                    <input type="text" class="form-input" id="add-a-designation" placeholder="e.g., A1, B2" required>
+                </div>
+
+                <!-- Serial specific -->
+                <div id="add-serial-fields">
+                    <div class="form-group">
+                        <label class="form-label">Device *</label>
+                        <select class="form-select" id="add-device">
+                            <option value="">Select device...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Baud Rate</label>
+                        <select class="form-select" id="add-baud-rate" onchange="updateAddSerialSettings()">
+                            <option value="0" selected>Auto-detect</option>
+                            <option value="300">300</option>
+                            <option value="1200">1200</option>
+                            <option value="2400">2400</option>
+                            <option value="4800">4800</option>
+                            <option value="9600">9600</option>
+                            <option value="19200">19200</option>
+                            <option value="38400">38400</option>
+                            <option value="57600">57600</option>
+                            <option value="115200">115200</option>
+                        </select>
+                        <div class="form-hint">Auto-detect will probe baud rates automatically</div>
+                    </div>
+                    <!-- Serial settings shown only when manual baud is selected -->
+                    <div id="add-serial-params" class="hidden">
+                        <div class="form-group">
+                            <label class="form-label">Data Bits</label>
+                            <select class="form-select" id="add-data-bits">
+                                <option value="5">5</option>
+                                <option value="6">6</option>
+                                <option value="7">7</option>
+                                <option value="8" selected>8</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Parity</label>
+                            <select class="form-select" id="add-parity">
+                                <option value="none" selected>None</option>
+                                <option value="odd">Odd</option>
+                                <option value="even">Even</option>
+                                <option value="mark">Mark</option>
+                                <option value="space">Space</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Stop Bits</label>
+                            <select class="form-select" id="add-stop-bits">
+                                <option value="1" selected>1</option>
+                                <option value="2">2</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Flow Control</label>
+                            <select class="form-select" id="add-flow-control">
+                                <option value="false" selected>None</option>
+                                <option value="true">Hardware (RTS/CTS)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Vendor</label>
+                        <select class="form-select" id="add-vendor">
+                            <option value="">Unknown</option>
+                            <option value="intrado">Intrado (Viper/Vesta)</option>
+                            <option value="motorola">Motorola</option>
+                            <option value="zetron">Zetron</option>
+                            <option value="positron">Positron</option>
+                            <option value="solacom">Solacom</option>
+                            <option value="plant">Plant CML</option>
+                            <option value="ecw">ECW</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- HTTP specific -->
+                <div id="add-http-fields" class="hidden">
+                    <div class="form-group">
+                        <label class="form-label">Path *</label>
+                        <input type="text" class="form-input" id="add-path" placeholder="/cdr">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Listen Port</label>
+                        <input type="number" class="form-input" id="add-listen-port" value="0" min="0" max="65535">
+                        <div class="form-hint">0 = use monitoring port</div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">FIPS Code (optional)</label>
+                    <input type="text" class="form-input" id="add-fips-code" placeholder="Override default">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Description</label>
+                    <input type="text" class="form-input" id="add-description" placeholder="Optional">
+                </div>
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="checkbox" id="add-enabled" checked>
+                        <span>Enable immediately</span>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeAddModal()">Cancel</button>
+                <button class="btn btn-success" onclick="addNewPort()">Add Port</button>
+            </div>
         </div>
     </div>
 
@@ -1088,9 +1654,12 @@
                         const linkClass = iface.link_up ? 'link-up' : 'link-down';
                         const linkStatus = iface.link_up ? '▲' : '▼';
                         const speed = iface.speed || 'N/A';
+                        const ethAlias = getEthAlias(iface.name);
+                        const displayName = ethAlias || iface.name;
                         return `
                             <div class="net-card ${linkClass}">
-                                <div class="net-name">${iface.name} ${linkStatus}</div>
+                                <div class="net-name">${displayName} ${linkStatus}</div>
+                                ${ethAlias ? `<div class="net-device">${iface.name}</div>` : ''}
                                 <div class="net-ip">${iface.ip || 'No IP'}</div>
                                 <div class="net-stats">${speed}</div>
                                 <div class="net-stats">↓${formatBytes(iface.rx_bytes)} ↑${formatBytes(iface.tx_bytes)}</div>
@@ -1752,15 +2321,551 @@
             document.getElementById('utc-clock').textContent = utc;
         }
 
+        // ==========================================
+        // Port Configuration Functions
+        // ==========================================
+
+        let portConfigData = {}; // Store port config data for modal
+
+        // Map Linux device names to COM port aliases
+        function getComAlias(device) {
+            const comMap = {
+                '/dev/ttyS0': 'COM1',
+                '/dev/ttyS1': 'COM2',
+                '/dev/ttyS2': 'COM3',
+                '/dev/ttyS3': 'COM4',
+                '/dev/ttyS4': 'COM5',
+                '/dev/ttyS5': 'COM6',
+                '/dev/ttyUSB0': 'USB0',
+                '/dev/ttyUSB1': 'USB1',
+                '/dev/ttyUSB2': 'USB2',
+                '/dev/ttyUSB3': 'USB3',
+            };
+            return comMap[device] || '';
+        }
+
+        // Map Linux network interface names to ETH aliases
+        function getEthAlias(ifaceName) {
+            const ethMap = {
+                'enp1s0': 'ETH1',
+                'enp2s0': 'ETH2',
+                'enp3s0': 'ETH3',
+                'enp4s0': 'ETH4',
+                'ens1': 'ETH1',
+                'ens2': 'ETH2',
+                'ens3': 'ETH3',
+                'ens4': 'ETH4',
+                'eth0': 'ETH1',
+                'eth1': 'ETH2',
+                'eth2': 'ETH3',
+                'eth3': 'ETH4',
+            };
+            return ethMap[ifaceName] || '';
+        }
+
+        // Get COM alias for display in selects
+        function formatDeviceOption(device) {
+            const alias = getComAlias(device);
+            const shortName = device.replace('/dev/', '');
+            return alias ? `${shortName} (${alias})` : shortName;
+        }
+
+        async function updatePortConfig() {
+            try {
+                const response = await fetch('/api/ports/config');
+                const data = await response.json();
+                const container = document.getElementById('port-config-container');
+
+                if (!data.ports || data.ports.length === 0) {
+                    container.innerHTML = '<div class="no-data">No ports configured</div>';
+                    return;
+                }
+
+                // Store for modal use
+                portConfigData = {};
+                data.ports.forEach(p => portConfigData[p.id] = p);
+
+                container.innerHTML = data.ports.map(port => {
+                    const isSerial = port.type === 'serial';
+                    const disabledClass = port.enabled ? '' : 'disabled';
+                    const shortId = isSerial ? port.device.replace('/dev/', '') : port.path;
+
+                    // COM alias for serial ports
+                    const comAlias = isSerial ? getComAlias(port.device) : '';
+
+                    // Config details
+                    let configHtml = '';
+                    if (isSerial) {
+                        const baudDisplay = port.config.baud_rate === 0 ? 'Auto' : port.config.baud_rate;
+                        const flowDisplay = port.config.use_flow_control === null ? 'Auto' :
+                                           (port.config.use_flow_control ? 'RTS/CTS' : 'None');
+                        const formatDisplay = `${port.config.data_bits || 8}${(port.config.parity || 'none').charAt(0).toUpperCase()}${port.config.stop_bits || 1}`;
+                        configHtml = `
+                            <div class="port-config-detail">
+                                <span class="port-config-detail-label">Baud</span>
+                                <span class="port-config-detail-value">${baudDisplay}</span>
+                            </div>
+                            <div class="port-config-detail">
+                                <span class="port-config-detail-label">Format</span>
+                                <span class="port-config-detail-value">${formatDisplay}</span>
+                            </div>
+                            <div class="port-config-detail">
+                                <span class="port-config-detail-label">Flow</span>
+                                <span class="port-config-detail-value">${flowDisplay}</span>
+                            </div>
+                            <div class="port-config-detail">
+                                <span class="port-config-detail-label">State</span>
+                                <span class="port-config-detail-value">${formatState(port.state)}</span>
+                            </div>
+                        `;
+                    } else {
+                        configHtml = `
+                            <div class="port-config-detail">
+                                <span class="port-config-detail-label">Path</span>
+                                <span class="port-config-detail-value">${port.path}</span>
+                            </div>
+                            <div class="port-config-detail">
+                                <span class="port-config-detail-label">Listen Port</span>
+                                <span class="port-config-detail-value">${port.listen_port || 'Default'}</span>
+                            </div>
+                            <div class="port-config-detail">
+                                <span class="port-config-detail-label">State</span>
+                                <span class="port-config-detail-value">${formatState(port.state)}</span>
+                            </div>
+                            <div class="port-config-detail">
+                                <span class="port-config-detail-label">FIPS</span>
+                                <span class="port-config-detail-value">${port.fips_code}</span>
+                            </div>
+                        `;
+                    }
+
+                    const subtitleText = isSerial ? `${shortId}${comAlias ? ' (' + comAlias + ')' : ''}` : port.path;
+
+                    return `
+                        <div class="port-config-card ${disabledClass}">
+                            <div class="port-config-header">
+                                <div>
+                                    <div class="port-config-title">${port.a_designation}</div>
+                                    <div class="port-config-subtitle">${subtitleText}</div>
+                                </div>
+                                <div class="port-config-header-right">
+                                    <span class="port-config-type ${port.type}">${port.type}</span>
+                                    <label class="toggle-switch" title="${port.enabled ? 'Disable' : 'Enable'} port">
+                                        <input type="checkbox" ${port.enabled ? 'checked' : ''}
+                                               onchange="togglePort('${port.id}', this.checked)">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="port-config-details">
+                                ${configHtml}
+                            </div>
+                            <div class="port-config-actions">
+                                <button class="btn btn-primary btn-sm" onclick="openPortSettings('${port.id}')">
+                                    Settings
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (error) {
+                console.error('Error updating port config:', error);
+                document.getElementById('port-config-container').innerHTML =
+                    '<div class="no-data">Failed to load port configuration</div>';
+            }
+        }
+
+        async function togglePort(portId, enable) {
+            const action = enable ? 'enable' : 'disable';
+            const toggle = event.target;
+            toggle.disabled = true;
+
+            try {
+                const response = await fetch(`/api/ports/config/${encodeURIComponent(portId)}/${action}`, {
+                    method: 'POST'
+                });
+
+                if (response.ok) {
+                    showToast(`Port ${portId} ${action}d`, 'success');
+                    // Refresh both port config and stats
+                    updatePortConfig();
+                    updateStats();
+                } else {
+                    const error = await response.text();
+                    showToast(`Failed: ${error}`, 'error');
+                    // Revert toggle
+                    toggle.checked = !enable;
+                }
+            } catch (error) {
+                showToast(`Error: ${error.message}`, 'error');
+                toggle.checked = !enable;
+            } finally {
+                toggle.disabled = false;
+            }
+        }
+
+        function openPortSettings(portId) {
+            const port = portConfigData[portId];
+            if (!port) {
+                showToast('Port not found', 'error');
+                return;
+            }
+
+            document.getElementById('modal-port-id').value = portId;
+            document.getElementById('modal-port-type').value = port.type;
+            document.getElementById('modal-mode').value = 'edit';
+            document.getElementById('modal-title').textContent = `Settings: ${port.a_designation} (${portId})`;
+
+            // Show delete button for editing existing ports
+            document.getElementById('delete-port-btn').style.display = 'inline-block';
+
+            const serialSettings = document.getElementById('serial-settings');
+            const httpSettings = document.getElementById('http-settings');
+
+            // Common identity fields
+            document.getElementById('setting-a-designation').value = port.a_designation || '';
+            document.getElementById('setting-fips-code').value = port.fips_code || '';
+
+            if (port.type === 'serial') {
+                serialSettings.classList.remove('hidden');
+                httpSettings.classList.add('hidden');
+
+                // Hide device selector for existing ports (can't change device)
+                document.getElementById('device-select-group').style.display = 'none';
+
+                // Populate serial settings
+                document.getElementById('setting-baud-rate').value = port.config.baud_rate || 0;
+                document.getElementById('setting-data-bits').value = port.config.data_bits || 8;
+                document.getElementById('setting-parity').value = port.config.parity || 'none';
+                document.getElementById('setting-stop-bits').value = port.config.stop_bits || 1;
+                document.getElementById('setting-vendor').value = port.vendor || '';
+
+                // Flow control: null = auto, true = hw, false = none
+                const flowValue = port.config.use_flow_control === null ? 'auto' :
+                                 (port.config.use_flow_control ? 'true' : 'false');
+                document.getElementById('setting-flow-control').value = flowValue;
+
+                // Show/hide serial params based on baud rate
+                updateSettingsSerialParams();
+            } else {
+                serialSettings.classList.add('hidden');
+                httpSettings.classList.remove('hidden');
+
+                document.getElementById('setting-path').value = port.path || '';
+                document.getElementById('setting-listen-port').value = port.listen_port || 0;
+            }
+
+            // Common settings
+            document.getElementById('setting-county').value = port.county || '';
+            document.getElementById('setting-description').value = port.description || '';
+
+            // Show modal
+            document.getElementById('port-settings-modal').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('port-settings-modal').classList.remove('active');
+        }
+
+        async function savePortSettings() {
+            const portId = document.getElementById('modal-port-id').value;
+            const portType = document.getElementById('modal-port-type').value;
+
+            const updates = {};
+
+            // Common identity fields
+            const aDesignation = document.getElementById('setting-a-designation').value.trim();
+            if (aDesignation) updates.a_designation = aDesignation;
+
+            const fipsCode = document.getElementById('setting-fips-code').value.trim();
+            updates.fips_code = fipsCode; // Allow clearing
+
+            if (portType === 'serial') {
+                updates.baud_rate = parseInt(document.getElementById('setting-baud-rate').value);
+                updates.data_bits = parseInt(document.getElementById('setting-data-bits').value);
+                updates.parity = document.getElementById('setting-parity').value;
+                updates.stop_bits = parseInt(document.getElementById('setting-stop-bits').value);
+
+                const flowValue = document.getElementById('setting-flow-control').value;
+                if (flowValue === 'auto') {
+                    updates.use_flow_control = null;
+                } else {
+                    updates.use_flow_control = flowValue === 'true';
+                }
+
+                const vendor = document.getElementById('setting-vendor').value;
+                updates.vendor = vendor;
+            } else {
+                const path = document.getElementById('setting-path').value.trim();
+                if (path) updates.path = path;
+                updates.listen_port = parseInt(document.getElementById('setting-listen-port').value) || 0;
+            }
+
+            // Common settings
+            updates.county = document.getElementById('setting-county').value.trim();
+            updates.description = document.getElementById('setting-description').value.trim();
+
+            try {
+                const response = await fetch(`/api/ports/config/${encodeURIComponent(portId)}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updates)
+                });
+
+                if (response.ok) {
+                    showToast('Settings saved successfully', 'success');
+                    closeModal();
+                    updatePortConfig();
+                    updateStats();
+                } else {
+                    const error = await response.text();
+                    showToast(`Failed: ${error}`, 'error');
+                }
+            } catch (error) {
+                showToast(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function deletePort() {
+            const portId = document.getElementById('modal-port-id').value;
+
+            if (!confirm(`Are you sure you want to delete port ${portId}? This cannot be undone.`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/ports/config/${encodeURIComponent(portId)}`, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    showToast(`Port ${portId} deleted`, 'success');
+                    closeModal();
+                    updatePortConfig();
+                    updateStats();
+                } else {
+                    const error = await response.text();
+                    showToast(`Failed: ${error}`, 'error');
+                }
+            } catch (error) {
+                showToast(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        // Add Port Modal Functions
+        async function openAddPortModal() {
+            // Fetch available ports
+            try {
+                const response = await fetch('/api/ports/available');
+                const data = await response.json();
+
+                const deviceSelect = document.getElementById('add-device');
+                deviceSelect.innerHTML = '<option value="">Select device...</option>';
+                (data.available_ports || []).forEach(port => {
+                    const option = document.createElement('option');
+                    option.value = port;
+                    option.textContent = formatDeviceOption(port);
+                    deviceSelect.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Failed to fetch available ports:', error);
+            }
+
+            // Reset form
+            document.getElementById('add-port-type').value = 'serial';
+            document.getElementById('add-a-designation').value = '';
+            document.getElementById('add-device').value = '';
+            document.getElementById('add-baud-rate').value = '0';
+            document.getElementById('add-data-bits').value = '8';
+            document.getElementById('add-parity').value = 'none';
+            document.getElementById('add-stop-bits').value = '1';
+            document.getElementById('add-flow-control').value = 'false';
+            document.getElementById('add-vendor').value = '';
+            document.getElementById('add-path').value = '';
+            document.getElementById('add-listen-port').value = '0';
+            document.getElementById('add-fips-code').value = '';
+            document.getElementById('add-description').value = '';
+            document.getElementById('add-enabled').checked = true;
+
+            updateAddPortForm();
+            updateAddSerialSettings();
+            document.getElementById('add-port-modal').classList.add('active');
+        }
+
+        function closeAddModal() {
+            document.getElementById('add-port-modal').classList.remove('active');
+        }
+
+        function updateAddPortForm() {
+            const portType = document.getElementById('add-port-type').value;
+            const serialFields = document.getElementById('add-serial-fields');
+            const httpFields = document.getElementById('add-http-fields');
+
+            if (portType === 'serial') {
+                serialFields.classList.remove('hidden');
+                httpFields.classList.add('hidden');
+            } else {
+                serialFields.classList.add('hidden');
+                httpFields.classList.remove('hidden');
+            }
+        }
+
+        // Show/hide serial params based on baud rate selection in Add Port modal
+        function updateAddSerialSettings() {
+            const baudRate = document.getElementById('add-baud-rate').value;
+            const serialParams = document.getElementById('add-serial-params');
+
+            if (baudRate === '0') {
+                // Auto-detect: hide serial params (they're handled automatically)
+                serialParams.classList.add('hidden');
+            } else {
+                // Manual baud: show serial params for user configuration
+                serialParams.classList.remove('hidden');
+            }
+        }
+
+        // Show/hide serial params based on baud rate selection in Settings modal
+        function updateSettingsSerialParams() {
+            const baudRate = document.getElementById('setting-baud-rate').value;
+            const serialParams = document.getElementById('setting-serial-params');
+
+            if (baudRate === '0') {
+                // Auto-detect: hide serial params (they're handled automatically)
+                serialParams.classList.add('hidden');
+            } else {
+                // Manual baud: show serial params for user configuration
+                serialParams.classList.remove('hidden');
+            }
+        }
+
+        async function addNewPort() {
+            const portType = document.getElementById('add-port-type').value;
+            const aDesignation = document.getElementById('add-a-designation').value.trim();
+
+            if (!aDesignation) {
+                showToast('A Designation is required', 'error');
+                return;
+            }
+
+            const portConfig = {
+                type: portType,
+                a_designation: aDesignation,
+                enabled: document.getElementById('add-enabled').checked
+            };
+
+            if (portType === 'serial') {
+                const device = document.getElementById('add-device').value;
+                if (!device) {
+                    showToast('Device is required', 'error');
+                    return;
+                }
+                portConfig.device = device;
+                portConfig.baud_rate = parseInt(document.getElementById('add-baud-rate').value) || 0;
+
+                // Include serial params if manual baud rate is selected
+                if (portConfig.baud_rate > 0) {
+                    portConfig.data_bits = parseInt(document.getElementById('add-data-bits').value) || 8;
+                    portConfig.parity = document.getElementById('add-parity').value || 'none';
+                    portConfig.stop_bits = parseInt(document.getElementById('add-stop-bits').value) || 1;
+                    const flowValue = document.getElementById('add-flow-control').value;
+                    portConfig.use_flow_control = flowValue === 'true';
+                }
+
+                const vendor = document.getElementById('add-vendor').value;
+                if (vendor) portConfig.vendor = vendor;
+            } else {
+                const path = document.getElementById('add-path').value.trim();
+                if (!path) {
+                    showToast('Path is required', 'error');
+                    return;
+                }
+                if (!path.startsWith('/')) {
+                    showToast('Path must start with /', 'error');
+                    return;
+                }
+                portConfig.type = 'http';
+                portConfig.path = path;
+                portConfig.listen_port = parseInt(document.getElementById('add-listen-port').value) || 0;
+            }
+
+            const fipsCode = document.getElementById('add-fips-code').value.trim();
+            if (fipsCode) portConfig.fips_code = fipsCode;
+
+            const description = document.getElementById('add-description').value.trim();
+            if (description) portConfig.description = description;
+
+            try {
+                const response = await fetch('/api/ports/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(portConfig)
+                });
+
+                if (response.ok) {
+                    showToast(`Port ${aDesignation} added successfully`, 'success');
+                    closeAddModal();
+                    updatePortConfig();
+                    updateStats();
+                } else {
+                    const error = await response.text();
+                    showToast(`Failed: ${error}`, 'error');
+                }
+            } catch (error) {
+                showToast(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        // Toast notifications
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            container.appendChild(toast);
+
+            // Auto-remove after 4 seconds
+            setTimeout(() => {
+                toast.classList.add('hiding');
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        }
+
+        // Close modal on escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeModal();
+            }
+        });
+
+        // Close modal on overlay click
+        document.getElementById('port-settings-modal').addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal-overlay')) {
+                closeModal();
+            }
+        });
+
+        // Close add modal on overlay click
+        document.getElementById('add-port-modal').addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal-overlay')) {
+                closeAddModal();
+            }
+        });
+
+        // ==========================================
+        // Initialize
+        // ==========================================
+
         updateStats();
         updatePorts();
         updateSystem();
         updateEvents();
+        updatePortConfig();
         updateUTCClock();
         statsInterval = setInterval(updateStats, 5000);
         setInterval(updatePorts, 5000);
         setInterval(updateSystem, 5000);
         setInterval(updateEvents, 10000); // Events refresh every 10s (less frequent)
+        setInterval(updatePortConfig, 10000); // Port config refresh every 10s
         setInterval(updateUTCClock, 1000); // Clock updates every second
     </script>
 </body>

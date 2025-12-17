@@ -77,6 +77,12 @@ func (m *MockReader) Reconfigure(baudRate int, useFlowControl bool) error {
 	return nil
 }
 
+func (m *MockReader) SetBaudRate(baudRate int) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return nil
+}
+
 func (m *MockReader) SetReadTimeout(timeout time.Duration) error {
 	return nil
 }
@@ -224,7 +230,7 @@ func TestSerialConfigDefaults(t *testing.T) {
 		t.Errorf("Parity = %q, want %q", cfg.Parity, "none")
 	}
 	if cfg.StopBits != 1 {
-		t.Errorf("StopBits = %d, want 1", cfg.StopBits)
+		t.Errorf("StopBits = %v, want 1", cfg.StopBits)
 	}
 	if cfg.UseFlowControl {
 		t.Error("UseFlowControl should be false")

@@ -21,7 +21,7 @@ func newTestManager() *capture.Manager {
 		},
 	}
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
-	return capture.NewManager(cfg, logger)
+	return capture.NewManager(cfg, "", logger)
 }
 
 func TestNewServer(t *testing.T) {
@@ -468,5 +468,258 @@ func BenchmarkTailFile(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		tailFile(path, 50)
+	}
+}
+
+func newTestManagerWithPorts() *capture.Manager {
+	cfg := &config.Config{
+		App: config.AppConfig{
+			Name:       "Test",
+			InstanceID: "test-01",
+			FIPSCode:   "3100000000",
+		},
+		Ports: []config.PortConfig{
+			{
+				Type:         "serial",
+				Device:       "/dev/ttyS1",
+				ADesignation: "A1",
+				BaudRate:     9600,
+				Enabled:      true,
+			},
+			{
+				Type:         "http",
+				Path:         "/cdr",
+				ADesignation: "B1",
+				Enabled:      true,
+			},
+		},
+	}
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	return capture.NewManager(cfg, "", logger)
+}
+
+func TestHandlePortsConfig(t *testing.T) {
+	cfg := &config.MonitoringConfig{Port: 8080}
+	manager := newTestManagerWithPorts()
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	server := NewServer(cfg, manager, "/var/log", logger)
+
+	req := httptest.NewRequest("GET", "/api/ports/config", nil)
+	rr := httptest.NewRecorder()
+
+	server.handlePortsConfig(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("handlePortsConfig() status = %d, want %d", rr.Code, http.StatusOK)
+	}
+
+	var response map[string]interface{}
+	if err := json.Unmarshal(rr.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to parse response: %v", err)
+	}
+
+	ports, ok := response["ports"].([]interface{})
+	if !ok {
+		t.Fatal("ports should be an array")
+	}
+	if len(ports) != 2 {
+		t.Errorf("len(ports) = %d, want 2", len(ports))
+	}
+}
+
+func TestHandlePortConfigGetNotFound(t *testing.T) {
+	cfg := &config.MonitoringConfig{Port: 8080}
+	manager := newTestManager()
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	server := NewServer(cfg, manager, "/var/log", logger)
+
+	req := httptest.NewRequest("GET", "/api/ports/config/nonexistent", nil)
+	rr := httptest.NewRecorder()
+
+	server.handlePortGet(rr, req, "nonexistent")
+
+	if rr.Code != http.StatusNotFound {
+		t.Errorf("handlePortGet() status = %d, want %d", rr.Code, http.StatusNotFound)
+	}
+}
+
+func TestHandlePortEnableNotFound(t *testing.T) {
+	cfg := &config.MonitoringConfig{Port: 8080}
+	manager := newTestManager()
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	server := NewServer(cfg, manager, "/var/log", logger)
+
+	req := httptest.NewRequest("POST", "/api/ports/config/nonexistent/enable", nil)
+	rr := httptest.NewRecorder()
+
+	server.handlePortEnable(rr, req, "nonexistent")
+
+	if rr.Code != http.StatusNotFound {
+		t.Errorf("handlePortEnable() status = %d, want %d", rr.Code, http.StatusNotFound)
+	}
+}
+
+func TestHandlePortDisableNotFound(t *testing.T) {
+	cfg := &config.MonitoringConfig{Port: 8080}
+	manager := newTestManager()
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	server := NewServer(cfg, manager, "/var/log", logger)
+
+	req := httptest.NewRequest("POST", "/api/ports/config/nonexistent/disable", nil)
+	rr := httptest.NewRecorder()
+
+	server.handlePortDisable(rr, req, "nonexistent")
+
+	if rr.Code != http.StatusNotFound {
+		t.Errorf("handlePortDisable() status = %d, want %d", rr.Code, http.StatusNotFound)
+	}
+}
+
+func TestHandlePortDeleteNotFound(t *testing.T) {
+	cfg := &config.MonitoringConfig{Port: 8080}
+	manager := newTestManager()
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	server := NewServer(cfg, manager, "/var/log", logger)
+
+	req := httptest.NewRequest("DELETE", "/api/ports/config/nonexistent", nil)
+	rr := httptest.NewRecorder()
+
+	server.handlePortDelete(rr, req, "nonexistent")
+
+	if rr.Code != http.StatusNotFound {
+		t.Errorf("handlePortDelete() status = %d, want %d", rr.Code, http.StatusNotFound)
+	}
+}
+
+func TestHandleAvailablePorts(t *testing.T) {
+	cfg := &config.MonitoringConfig{Port: 8080}
+	manager := newTestManager()
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	server := NewServer(cfg, manager, "/var/log", logger)
+
+	req := httptest.NewRequest("GET", "/api/ports/available", nil)
+	rr := httptest.NewRecorder()
+
+	server.handleAvailablePorts(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("handleAvailablePorts() status = %d, want %d", rr.Code, http.StatusOK)
+	}
+
+	var response map[string]interface{}
+	if err := json.Unmarshal(rr.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to parse response: %v", err)
+	}
+
+	// Should have available_ports key
+	if _, ok := response["available_ports"]; !ok {
+		t.Error("Response should have available_ports key")
+	}
+}
+
+func TestValidatePortUpdates(t *testing.T) {
+	tests := []struct {
+		name    string
+		updates map[string]interface{}
+		wantErr bool
+	}{
+		{
+			name:    "empty updates",
+			updates: map[string]interface{}{},
+			wantErr: false,
+		},
+		{
+			name: "valid baud rate",
+			updates: map[string]interface{}{
+				"baud_rate": float64(9600),
+			},
+			wantErr: false,
+		},
+		{
+			name: "invalid baud rate",
+			updates: map[string]interface{}{
+				"baud_rate": float64(12345),
+			},
+			wantErr: true,
+		},
+		{
+			name: "valid data bits",
+			updates: map[string]interface{}{
+				"data_bits": float64(8),
+			},
+			wantErr: false,
+		},
+		{
+			name: "invalid data bits",
+			updates: map[string]interface{}{
+				"data_bits": float64(9),
+			},
+			wantErr: true,
+		},
+		{
+			name: "valid parity",
+			updates: map[string]interface{}{
+				"parity": "none",
+			},
+			wantErr: false,
+		},
+		{
+			name: "invalid parity",
+			updates: map[string]interface{}{
+				"parity": "invalid",
+			},
+			wantErr: true,
+		},
+		{
+			name: "valid stop bits",
+			updates: map[string]interface{}{
+				"stop_bits": float64(1),
+			},
+			wantErr: false,
+		},
+		{
+			name: "invalid stop bits",
+			updates: map[string]interface{}{
+				"stop_bits": float64(3),
+			},
+			wantErr: true,
+		},
+		{
+			name: "valid path",
+			updates: map[string]interface{}{
+				"path": "/newpath",
+			},
+			wantErr: false,
+		},
+		{
+			name: "invalid path",
+			updates: map[string]interface{}{
+				"path": "noSlash",
+			},
+			wantErr: true,
+		},
+		{
+			name: "valid listen port",
+			updates: map[string]interface{}{
+				"listen_port": float64(8080),
+			},
+			wantErr: false,
+		},
+		{
+			name: "invalid listen port too high",
+			updates: map[string]interface{}{
+				"listen_port": float64(70000),
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validatePortUpdates(tt.updates)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("validatePortUpdates() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
 	}
 }

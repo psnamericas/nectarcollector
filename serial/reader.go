@@ -36,6 +36,7 @@ type Reader interface {
 	Device() string
 	IsOpen() bool
 	Reconfigure(baudRate int, useFlowControl bool) error
+	SetBaudRate(baudRate int) error // Fast baud rate change using SetMode (no close/reopen)
 	SetReadTimeout(timeout time.Duration) error
 	ResetInputBuffer() error
 	GetModemStatus() (*ModemStatus, error)
@@ -44,9 +45,9 @@ type Reader interface {
 // SerialConfig holds all serial port configuration parameters
 type SerialConfig struct {
 	BaudRate       int
-	DataBits       int    // 5, 6, 7, or 8
-	Parity         string // "none", "odd", "even", "mark", "space"
-	StopBits       int    // 1 or 2
+	DataBits       int     // 5, 6, 7, or 8
+	Parity         string  // "none", "odd", "even", "mark", "space"
+	StopBits       float64 // 1, 1.5, or 2
 	UseFlowControl bool
 }
 
@@ -77,12 +78,16 @@ func parityFromString(p string) serial.Parity {
 	}
 }
 
-// stopBitsFromInt converts stop bits int to go.bug.st/serial StopBits type
-func stopBitsFromInt(s int) serial.StopBits {
-	if s == 2 {
+// stopBitsFromFloat converts stop bits float to go.bug.st/serial StopBits type
+func stopBitsFromFloat(s float64) serial.StopBits {
+	switch s {
+	case 1.5:
+		return serial.OnePointFiveStopBits
+	case 2:
 		return serial.TwoStopBits
+	default:
+		return serial.OneStopBit
 	}
-	return serial.OneStopBit
 }
 
 // RealReader implements Reader using go.bug.st/serial
@@ -114,6 +119,35 @@ func NewRealReaderWithConfig(device string, config SerialConfig) (*RealReader, e
 	return reader, nil
 }
 
+// formatPortError provides user-friendly error messages based on PortError codes
+func formatPortError(device string, err error) error {
+	portErr, ok := err.(*serial.PortError)
+	if !ok {
+		return fmt.Errorf("failed to open %s: %w", device, err)
+	}
+
+	switch portErr.Code() {
+	case serial.PortBusy:
+		return fmt.Errorf("port %s is busy (in use by another process)", device)
+	case serial.PortNotFound:
+		return fmt.Errorf("port %s not found (check device path and connections)", device)
+	case serial.InvalidSerialPort:
+		return fmt.Errorf("port %s is not a valid serial port", device)
+	case serial.PermissionDenied:
+		return fmt.Errorf("permission denied for %s (try: sudo usermod -a -G dialout $USER)", device)
+	case serial.InvalidSpeed:
+		return fmt.Errorf("invalid baud rate for %s: %s", device, portErr.EncodedErrorString())
+	case serial.InvalidDataBits:
+		return fmt.Errorf("invalid data bits for %s (must be 5, 6, 7, or 8)", device)
+	case serial.InvalidParity:
+		return fmt.Errorf("invalid parity for %s", device)
+	case serial.InvalidStopBits:
+		return fmt.Errorf("invalid stop bits for %s", device)
+	default:
+		return fmt.Errorf("failed to open %s: %s", device, portErr.EncodedErrorString())
+	}
+}
+
 // open opens the serial port with current configuration
 func (r *RealReader) open() error {
 	r.mu.Lock()
@@ -133,12 +167,12 @@ func (r *RealReader) open() error {
 		BaudRate: r.config.BaudRate,
 		DataBits: dataBits,
 		Parity:   parityFromString(r.config.Parity),
-		StopBits: stopBitsFromInt(r.config.StopBits),
+		StopBits: stopBitsFromFloat(r.config.StopBits),
 	}
 
 	port, err := serial.Open(r.device, mode)
 	if err != nil {
-		return fmt.Errorf("failed to open %s: %w", r.device, err)
+		return formatPortError(r.device, err)
 	}
 
 	// Set read timeout - use detection timeout initially, can be changed later
@@ -280,10 +314,52 @@ func (r *RealReader) GetModemStatus() (*ModemStatus, error) {
 	}, nil
 }
 
+// SetBaudRate changes the baud rate without closing/reopening the port.
+// This uses SetMode() which is faster and avoids USB adapter settling delays.
+// Ideal for autobaud detection where we need to test multiple baud rates quickly.
+func (r *RealReader) SetBaudRate(baudRate int) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if !r.isOpen || r.port == nil {
+		return fmt.Errorf("port not open")
+	}
+
+	// Apply defaults for zero values
+	dataBits := r.config.DataBits
+	if dataBits == 0 {
+		dataBits = 8
+	}
+
+	mode := &serial.Mode{
+		BaudRate: baudRate,
+		DataBits: dataBits,
+		Parity:   parityFromString(r.config.Parity),
+		StopBits: stopBitsFromFloat(r.config.StopBits),
+	}
+
+	if err := r.port.SetMode(mode); err != nil {
+		return fmt.Errorf("failed to set baud rate %d: %w", baudRate, err)
+	}
+
+	r.config.BaudRate = baudRate
+	return nil
+}
+
 // Reconfigure closes and reopens the port with new settings.
-// This is atomic - the port is either fully reconfigured or left closed on error.
+// Use SetBaudRate() for faster baud-rate-only changes.
+// This method is needed when flow control settings change.
 func (r *RealReader) Reconfigure(baudRate int, useFlowControl bool) error {
-	// Close first (this acquires its own lock)
+	// If only baud rate is changing and port is open, use fast path
+	r.mu.RLock()
+	canUseFastPath := r.isOpen && r.config.UseFlowControl == useFlowControl
+	r.mu.RUnlock()
+
+	if canUseFastPath {
+		return r.SetBaudRate(baudRate)
+	}
+
+	// Full reconfigure needed - close and reopen
 	if err := r.Close(); err != nil {
 		return fmt.Errorf("failed to close port: %w", err)
 	}
@@ -375,6 +451,11 @@ func (r *ReaderWithStats) IsOpen() bool {
 // Reconfigure reconfigures the underlying reader
 func (r *ReaderWithStats) Reconfigure(baudRate int, useFlowControl bool) error {
 	return r.reader.Reconfigure(baudRate, useFlowControl)
+}
+
+// SetBaudRate changes baud rate on the underlying reader without close/reopen
+func (r *ReaderWithStats) SetBaudRate(baudRate int) error {
+	return r.reader.SetBaudRate(baudRate)
 }
 
 // SetReadTimeout sets the read timeout on the underlying reader

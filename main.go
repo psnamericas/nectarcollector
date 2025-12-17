@@ -63,7 +63,7 @@ func main() {
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 	// Create capture manager
-	manager := capture.NewManager(cfg, logger)
+	manager := capture.NewManager(cfg, *configPath, logger)
 
 	// Start capture channels first (creates HTTP channels we need for routing)
 	if err := manager.Start(ctx); err != nil {

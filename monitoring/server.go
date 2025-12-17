@@ -279,6 +279,9 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/health", s.handleHealth)
 	mux.HandleFunc("/api/stats", s.handleStats)
 	mux.HandleFunc("/api/ports", s.handlePorts)
+	mux.HandleFunc("/api/ports/config", s.handlePortsConfig)
+	mux.HandleFunc("/api/ports/config/", s.handlePortConfigAction)
+	mux.HandleFunc("/api/ports/available", s.handleAvailablePorts)
 	mux.HandleFunc("/api/system", s.handleSystem)
 	mux.HandleFunc("/api/feed", s.handleFeed)
 	mux.HandleFunc("/api/stream", s.handleSSE)
@@ -956,6 +959,339 @@ func tailFile(path string, n int) ([]string, error) {
 		result[i] = ring[(idx+i)%n]
 	}
 	return result, nil
+}
+
+// handlePortsConfig returns all port configurations or adds a new port
+func (s *Server) handlePortsConfig(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		ports := s.manager.GetPortConfigs()
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"ports": ports,
+		})
+
+	case http.MethodPost:
+		// Add new port
+		var portCfg config.PortConfig
+		if err := json.NewDecoder(r.Body).Decode(&portCfg); err != nil {
+			http.Error(w, "Invalid JSON body", http.StatusBadRequest)
+			return
+		}
+
+		if err := s.manager.AddPort(portCfg); err != nil {
+			if strings.Contains(err.Error(), "already") || strings.Contains(err.Error(), "required") {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+			} else {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+			return
+		}
+
+		s.logger.Info("Port added via API", "id", portCfg.ID())
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status":  "ok",
+			"message": fmt.Sprintf("Port %s added", portCfg.ID()),
+		})
+
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// handleAvailablePorts returns available serial ports not yet configured
+func (s *Server) handleAvailablePorts(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	available := s.manager.GetAvailableSerialPorts()
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"available_ports": available,
+	})
+}
+
+// handlePortConfigAction handles port enable/disable/update actions
+// Routes:
+//   - PUT /api/ports/config/{id} - Update port settings
+//   - POST /api/ports/config/{id}/enable - Enable port
+//   - POST /api/ports/config/{id}/disable - Disable port
+func (s *Server) handlePortConfigAction(w http.ResponseWriter, r *http.Request) {
+	// Parse path: /api/ports/config/{id} or /api/ports/config/{id}/{action}
+	path := strings.TrimPrefix(r.URL.Path, "/api/ports/config/")
+	parts := strings.Split(path, "/")
+
+	if len(parts) == 0 || parts[0] == "" {
+		http.Error(w, "Port ID required", http.StatusBadRequest)
+		return
+	}
+
+	// URL-decode the port ID (e.g., %2Fcdr -> /cdr)
+	portID, err := decodePortID(parts[0])
+	if err != nil {
+		http.Error(w, "Invalid port ID", http.StatusBadRequest)
+		return
+	}
+
+	// Determine action from path or method
+	var action string
+	if len(parts) >= 2 {
+		action = parts[1]
+	}
+
+	switch {
+	case action == "enable" && r.Method == http.MethodPost:
+		s.handlePortEnable(w, r, portID)
+	case action == "disable" && r.Method == http.MethodPost:
+		s.handlePortDisable(w, r, portID)
+	case action == "" && r.Method == http.MethodPut:
+		s.handlePortUpdate(w, r, portID)
+	case action == "" && r.Method == http.MethodGet:
+		s.handlePortGet(w, r, portID)
+	case action == "" && r.Method == http.MethodDelete:
+		s.handlePortDelete(w, r, portID)
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// decodePortID decodes a URL-encoded port ID
+func decodePortID(encoded string) (string, error) {
+	// Handle URL encoding (e.g., %2F for /)
+	decoded := encoded
+	decoded = strings.ReplaceAll(decoded, "%2F", "/")
+	decoded = strings.ReplaceAll(decoded, "%2f", "/")
+	return decoded, nil
+}
+
+// handlePortGet returns a single port configuration
+func (s *Server) handlePortGet(w http.ResponseWriter, r *http.Request, portID string) {
+	ports := s.manager.GetPortConfigs()
+
+	for _, port := range ports {
+		if port.ID == portID {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(port)
+			return
+		}
+	}
+
+	http.Error(w, "Port not found", http.StatusNotFound)
+}
+
+// handlePortEnable enables a disabled port
+func (s *Server) handlePortEnable(w http.ResponseWriter, r *http.Request, portID string) {
+	if err := s.manager.EnablePort(portID); err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			http.Error(w, err.Error(), http.StatusNotFound)
+		} else if strings.Contains(err.Error(), "already enabled") {
+			http.Error(w, err.Error(), http.StatusConflict)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	s.logger.Info("Port enabled via API", "port", portID)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":  "ok",
+		"message": fmt.Sprintf("Port %s enabled", portID),
+	})
+}
+
+// handlePortDisable disables an enabled port
+func (s *Server) handlePortDisable(w http.ResponseWriter, r *http.Request, portID string) {
+	if err := s.manager.DisablePort(portID); err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			http.Error(w, err.Error(), http.StatusNotFound)
+		} else if strings.Contains(err.Error(), "already disabled") {
+			http.Error(w, err.Error(), http.StatusConflict)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	s.logger.Info("Port disabled via API", "port", portID)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":  "ok",
+		"message": fmt.Sprintf("Port %s disabled", portID),
+	})
+}
+
+// handlePortDelete removes a port configuration
+func (s *Server) handlePortDelete(w http.ResponseWriter, r *http.Request, portID string) {
+	if err := s.manager.DeletePort(portID); err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			http.Error(w, err.Error(), http.StatusNotFound)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	s.logger.Info("Port deleted via API", "port", portID)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":  "ok",
+		"message": fmt.Sprintf("Port %s deleted", portID),
+	})
+}
+
+// handlePortUpdate updates port configuration
+func (s *Server) handlePortUpdate(w http.ResponseWriter, r *http.Request, portID string) {
+	// Parse JSON body
+	var updates map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&updates); err != nil {
+		http.Error(w, "Invalid JSON body", http.StatusBadRequest)
+		return
+	}
+
+	if len(updates) == 0 {
+		http.Error(w, "No updates provided", http.StatusBadRequest)
+		return
+	}
+
+	// Validate updates
+	if err := validatePortUpdates(updates); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err := s.manager.UpdatePortConfig(portID, updates); err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			http.Error(w, err.Error(), http.StatusNotFound)
+		} else if strings.Contains(err.Error(), "unknown config field") {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	s.logger.Info("Port config updated via API", "port", portID, "updates", updates)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":  "ok",
+		"message": fmt.Sprintf("Port %s configuration updated", portID),
+	})
+}
+
+// validatePortUpdates validates port configuration updates
+func validatePortUpdates(updates map[string]interface{}) error {
+	for key, value := range updates {
+		switch key {
+		case "baud_rate":
+			if v, ok := value.(float64); ok {
+				baud := int(v)
+				validBauds := []int{0, 300, 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200}
+				valid := false
+				for _, vb := range validBauds {
+					if baud == vb {
+						valid = true
+						break
+					}
+				}
+				if !valid {
+					return fmt.Errorf("invalid baud_rate: %d", baud)
+				}
+			} else {
+				return fmt.Errorf("baud_rate must be a number")
+			}
+		case "data_bits":
+			if v, ok := value.(float64); ok {
+				bits := int(v)
+				if bits < 5 || bits > 8 {
+					return fmt.Errorf("data_bits must be 5, 6, 7, or 8")
+				}
+			} else {
+				return fmt.Errorf("data_bits must be a number")
+			}
+		case "parity":
+			if v, ok := value.(string); ok {
+				validParity := []string{"none", "odd", "even", "mark", "space"}
+				valid := false
+				for _, vp := range validParity {
+					if v == vp {
+						valid = true
+						break
+					}
+				}
+				if !valid {
+					return fmt.Errorf("parity must be one of: none, odd, even, mark, space")
+				}
+			} else {
+				return fmt.Errorf("parity must be a string")
+			}
+		case "stop_bits":
+			if v, ok := value.(float64); ok {
+				bits := int(v)
+				if bits != 1 && bits != 2 {
+					return fmt.Errorf("stop_bits must be 1 or 2")
+				}
+			} else {
+				return fmt.Errorf("stop_bits must be a number")
+			}
+		case "use_flow_control":
+			if value != nil {
+				if _, ok := value.(bool); !ok {
+					return fmt.Errorf("use_flow_control must be true, false, or null")
+				}
+			}
+		case "listen_port":
+			if v, ok := value.(float64); ok {
+				port := int(v)
+				if port < 0 || port > 65535 {
+					return fmt.Errorf("listen_port must be 0-65535")
+				}
+			} else {
+				return fmt.Errorf("listen_port must be a number")
+			}
+		case "description":
+			if _, ok := value.(string); !ok {
+				return fmt.Errorf("description must be a string")
+			}
+		case "path":
+			if v, ok := value.(string); ok {
+				if !strings.HasPrefix(v, "/") {
+					return fmt.Errorf("path must start with /")
+				}
+			} else {
+				return fmt.Errorf("path must be a string")
+			}
+		case "a_designation":
+			if _, ok := value.(string); !ok {
+				return fmt.Errorf("a_designation must be a string")
+			}
+		case "fips_code":
+			if _, ok := value.(string); !ok {
+				return fmt.Errorf("fips_code must be a string")
+			}
+		case "vendor":
+			if _, ok := value.(string); !ok {
+				return fmt.Errorf("vendor must be a string")
+			}
+		case "county":
+			if _, ok := value.(string); !ok {
+				return fmt.Errorf("county must be a string")
+			}
+		default:
+			return fmt.Errorf("unknown config field: %s", key)
+		}
+	}
+	return nil
 }
 
 // handleEvents returns recent events from the NATS events stream

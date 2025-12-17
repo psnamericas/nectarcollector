@@ -63,19 +63,28 @@ func NewDetector(device string, baudRates []int, detectionTimeout time.Duration,
 func (d *Detector) DetectBaudRate() (int, error) {
 	d.logger.Info("Starting autobaud detection", "device", d.device, "rates", d.baudRates)
 
-	for i, baudRate := range d.baudRates {
-		// Add settling delay between attempts (not before first)
-		// This allows USB-to-serial adapters to stabilize after close
-		if i > 0 {
-			time.Sleep(DetectionSettlingTime)
-		}
+	// Open port once at first baud rate, then use SetMode for subsequent rates
+	// This is much faster than close/reopen cycles (avoids 100ms settling delays)
+	var reader *RealReader
+	var err error
 
+	for i, baudRate := range d.baudRates {
 		d.logger.Debug("Trying baud rate", "device", d.device, "baud", baudRate)
 
-		reader, err := NewRealReader(d.device, baudRate, false)
-		if err != nil {
-			d.logger.Warn("Failed to open port", "device", d.device, "baud", baudRate, "error", err)
-			continue
+		if i == 0 {
+			// First iteration: open the port
+			reader, err = NewRealReader(d.device, baudRate, false)
+			if err != nil {
+				d.logger.Warn("Failed to open port", "device", d.device, "baud", baudRate, "error", err)
+				return 0, fmt.Errorf("failed to open port for detection: %w", err)
+			}
+			defer reader.Close()
+		} else {
+			// Subsequent iterations: just change baud rate (fast path)
+			if err := reader.SetBaudRate(baudRate); err != nil {
+				d.logger.Warn("Failed to set baud rate", "device", d.device, "baud", baudRate, "error", err)
+				continue
+			}
 		}
 
 		// Flush any stale data from previous baud rate test
@@ -86,7 +95,6 @@ func (d *Detector) DetectBaudRate() (int, error) {
 		}
 
 		validityRatio, bytesRead := d.testBaudRate(reader)
-		reader.Close()
 
 		d.logger.Debug("Baud rate test result",
 			"device", d.device,

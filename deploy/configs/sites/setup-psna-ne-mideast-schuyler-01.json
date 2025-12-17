@@ -3,7 +3,7 @@
   "fips_code": "1314010002",
   "vendor": "viper",
   "county": "schuyler",
-  "ports": [{"device": "ttyS1", "designation": "B1"}],
+  "ports": [{"device": "ttyS2", "designation": "B1", "baud_rate": 9600, "use_flow_control": false}],
   "dashboard_user": "psna",
   "dashboard_pass": "nectar2025"
 }

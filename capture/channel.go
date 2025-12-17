@@ -379,63 +379,78 @@ const natsCheckInterval = 500 * time.Millisecond
 // CRITICAL: This loop blocks when NATS is disconnected to prevent data loss.
 // The sending device's buffer holds data until we're ready to receive again.
 func (c *Channel) readLoop(ctx context.Context) error {
-	scanner := bufio.NewScanner(c.reader)
-
-	// Increase buffer size for long lines (like Scannex, handle any line length)
-	buf := make([]byte, InitialLineBufferSize)
-	scanner.Buffer(buf, MaxLineBufferSize)
-
+	// Outer loop allows scanner recreation on "no data" errors
 	for {
-		// Check for shutdown signals BEFORE blocking on Scan()
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-c.stopCh:
-			return nil
-		default:
-			// Continue
-		}
+		scanner := bufio.NewScanner(c.reader)
 
-		// Block if NATS is disconnected - don't read serial data we can't deliver
-		if !c.waitForNATS(ctx) {
-			// Context cancelled or stop requested during wait
-			return nil
-		}
+		// Increase buffer size for long lines (like Scannex, handle any line length)
+		buf := make([]byte, InitialLineBufferSize)
+		scanner.Buffer(buf, MaxLineBufferSize)
 
-		if !scanner.Scan() {
-			err := scanner.Err()
-			if err == nil {
-				// EOF - normal termination (port closed, etc.)
+		shouldRecreateScanner := false
+
+		for !shouldRecreateScanner {
+			// Check for shutdown signals BEFORE blocking on Scan()
+			select {
+			case <-ctx.Done():
+				return nil
+			case <-c.stopCh:
+				return nil
+			default:
+				// Continue
+			}
+
+			// Block if NATS is disconnected - don't read serial data we can't deliver
+			if !c.waitForNATS(ctx) {
+				// Context cancelled or stop requested during wait
 				return nil
 			}
 
-			// Check for line stall (bytes flowing but no lines completing)
-			// This is detected by ReaderWithStats when Read() is called
-			if err == serial.ErrLineStall {
-				c.logger.Warn("Line stall detected - triggering re-detection",
-					"device", c.config.Device)
-				return err
+			if !scanner.Scan() {
+				err := scanner.Err()
+				if err == nil {
+					// EOF - normal termination (port closed, etc.)
+					return nil
+				}
+
+				// Check for line stall (bytes flowing but no lines completing)
+				// This is detected by ReaderWithStats when Read() is called
+				if err == serial.ErrLineStall {
+					c.logger.Warn("Line stall detected - triggering re-detection",
+						"device", c.config.Device)
+					return err
+				}
+
+				// Check if this is a "no data" error from bufio.Scanner
+				// Scanner is dead after this - need to recreate it
+				if isNoDataError(err) {
+					c.logger.Debug("No data from scanner, resetting",
+						"device", c.config.Device)
+					_ = c.reader.ResetInputBuffer()
+					shouldRecreateScanner = true
+					continue
+				}
+
+				// Check if this is a timeout-related error
+				if isTimeoutError(err) {
+					// Timeout is normal - just loop back and check shutdown signals
+					continue
+				}
+
+				// Real error - increment counter and return
+				c.reader.IncrementErrors()
+				return fmt.Errorf("scanner error: %w", err)
 			}
 
-			// Check if this is a timeout-related error
-			if isTimeoutError(err) {
-				// Timeout is normal - just loop back and check shutdown signals
-				continue
+			line := scanner.Text()
+
+			// Check data quality - detect baud rate drift
+			if !c.checkLineQuality(line) {
+				return errBaudRateDrift
 			}
 
-			// Real error - increment counter and return
-			c.reader.IncrementErrors()
-			return fmt.Errorf("scanner error: %w", err)
+			c.processLine(line)
 		}
-
-		line := scanner.Text()
-
-		// Check data quality - detect baud rate drift
-		if !c.checkLineQuality(line) {
-			return errBaudRateDrift
-		}
-
-		c.processLine(line)
 	}
 }
 
@@ -472,6 +487,13 @@ func (c *Channel) waitForNATS(ctx context.Context) bool {
 	}
 }
 
+// isNoDataError checks if the error is bufio.Scanner's "no data" error.
+// This happens when Read() returns (0, nil) repeatedly - normal for idle serial ports.
+// The scanner is dead after this error and must be recreated.
+func isNoDataError(err error) bool {
+	return err.Error() == "multiple Read calls return no data or error"
+}
+
 // isTimeoutError checks if an error indicates a timeout
 // rather than a real serial port failure
 func isTimeoutError(err error) bool {
@@ -487,6 +509,7 @@ func isTimeoutError(err error) bool {
 		errMsg == "serial read timeout" ||
 		// Some platforms may return these
 		errMsg == "i/o timeout" ||
+		// EAGAIN/EWOULDBLOCK on non-blocking reads
 		errMsg == "resource temporarily unavailable"
 }
 

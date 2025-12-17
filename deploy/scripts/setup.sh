@@ -574,8 +574,8 @@ phase_nats() {
 listen: 127.0.0.1:4222
 server_name: nectarcollector
 
-# Maximum payload (CDR lines are small)
-max_payload: 64KB
+# Maximum payload (HTTP CDR payloads can be large, up to 10MB)
+max_payload: 10MB
 
 # JetStream configuration
 jetstream: {
@@ -639,7 +639,7 @@ EOF
     # CDR stream: 50GB, NO TTL (durable buffer until consumed)
     log INFO "Creating JetStream streams..."
 
-    # Health stream
+    # Health stream - small heartbeat messages, 30-day retention
     if nats stream info health &>/dev/null; then
         log OK "Health stream already exists"
     else
@@ -648,8 +648,8 @@ EOF
             --retention limits \
             --storage file \
             --max-age 30d \
-            --max-bytes 5368709120 \
-            --max-msg-size 8192 \
+            --max-bytes 5G \
+            --max-msg-size 8K \
             --discard old \
             --replicas 1 \
             --dupe-window 1m \
@@ -660,6 +660,7 @@ EOF
     fi
 
     # CDR stream - captures all CDR data on this box
+    # Max message size 10MB to handle large HTTP payloads (ECW sends 123KB+ XML)
     if nats stream info cdr &>/dev/null; then
         log OK "CDR stream already exists"
     else
@@ -667,8 +668,8 @@ EOF
             --subjects "*.cdr.>" \
             --retention limits \
             --storage file \
-            --max-bytes 53687091200 \
-            --max-msg-size 8192 \
+            --max-bytes 50G \
+            --max-msg-size 10M \
             --discard old \
             --replicas 1 \
             --dupe-window 2m \
@@ -687,8 +688,8 @@ EOF
             --subjects "*.events.>" \
             --retention limits \
             --storage file \
-            --max-bytes 1073741824 \
-            --max-msg-size 4096 \
+            --max-bytes 1G \
+            --max-msg-size 4K \
             --discard old \
             --replicas 1 \
             --dupe-window 1m \

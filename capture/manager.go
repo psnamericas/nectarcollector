@@ -14,19 +14,22 @@ import (
 // Manager manages multiple capture channels (serial and HTTP)
 type Manager struct {
 	config          *config.Config
+	configPath      string         // Path to config file for saving
 	channels        []*Channel     // Serial channels
 	httpChannels    []*HTTPChannel // HTTP channels
 	natsConn        *output.NATSConnection
 	healthPublisher *output.HealthPublisher
 	eventPublisher  *output.EventPublisher
 	logger          *slog.Logger
+	ctx             context.Context // Context for starting new channels
 	mu              sync.RWMutex
 }
 
 // NewManager creates a new capture manager
-func NewManager(cfg *config.Config, logger *slog.Logger) *Manager {
+func NewManager(cfg *config.Config, configPath string, logger *slog.Logger) *Manager {
 	return &Manager{
 		config:       cfg,
+		configPath:   configPath,
 		channels:     make([]*Channel, 0),
 		httpChannels: make([]*HTTPChannel, 0),
 		logger:       logger,
@@ -36,6 +39,7 @@ func NewManager(cfg *config.Config, logger *slog.Logger) *Manager {
 // Start initializes and starts all enabled capture channels.
 // NATS connection is required - returns error if NATS is unavailable.
 func (m *Manager) Start(ctx context.Context) error {
+	m.ctx = ctx // Store context for starting new channels later
 	m.logger.Info("Starting capture manager", "instance", m.config.App.InstanceID)
 
 	// Connect to NATS - required for operation
@@ -423,4 +427,476 @@ func (m *Manager) GetHTTPChannels() []*HTTPChannel {
 	channels := make([]*HTTPChannel, len(m.httpChannels))
 	copy(channels, m.httpChannels)
 	return channels
+}
+
+// PortInfo contains port configuration and runtime state for API responses
+type PortInfo struct {
+	ID           string            `json:"id"`
+	Type         string            `json:"type"`
+	Device       string            `json:"device,omitempty"`
+	Path         string            `json:"path,omitempty"`
+	ListenPort   int               `json:"listen_port,omitempty"`
+	ADesignation string            `json:"a_designation"`
+	FIPSCode     string            `json:"fips_code"`
+	Vendor       string            `json:"vendor,omitempty"`
+	Enabled      bool              `json:"enabled"`
+	State        string            `json:"state"`
+	Config       PortConfigDetails `json:"config"`
+	Stats        interface{}       `json:"stats,omitempty"`
+}
+
+// PortConfigDetails contains configurable port settings
+type PortConfigDetails struct {
+	BaudRate       int     `json:"baud_rate,omitempty"`
+	DataBits       int     `json:"data_bits,omitempty"`
+	Parity         string  `json:"parity,omitempty"`
+	StopBits       float64 `json:"stop_bits,omitempty"`
+	UseFlowControl *bool   `json:"use_flow_control,omitempty"`
+}
+
+// GetPortConfigs returns all port configurations with their current state
+func (m *Manager) GetPortConfigs() []PortInfo {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	ports := make([]PortInfo, 0, len(m.config.Ports))
+
+	for i := range m.config.Ports {
+		portCfg := &m.config.Ports[i]
+		fipsCode := portCfg.FIPSCode
+		if fipsCode == "" {
+			fipsCode = m.config.App.FIPSCode
+		}
+
+		info := PortInfo{
+			ID:           portCfg.ID(),
+			ADesignation: portCfg.ADesignation,
+			FIPSCode:     fipsCode,
+			Vendor:       portCfg.Vendor,
+			Enabled:      portCfg.Enabled,
+		}
+
+		if portCfg.IsHTTP() {
+			info.Type = "http"
+			info.Path = portCfg.Path
+			info.ListenPort = portCfg.ListenPort
+
+			// Find running HTTP channel
+			for _, ch := range m.httpChannels {
+				if ch.Path() == portCfg.Path {
+					info.State = "running"
+					info.Stats = ch.GetStats()
+					break
+				}
+			}
+			if info.State == "" {
+				info.State = "stopped"
+			}
+		} else {
+			info.Type = "serial"
+			info.Device = portCfg.Device
+			info.Config = PortConfigDetails{
+				BaudRate:       portCfg.BaudRate,
+				DataBits:       portCfg.DataBits,
+				Parity:         portCfg.Parity,
+				StopBits:       portCfg.StopBits,
+				UseFlowControl: portCfg.UseFlowControl,
+			}
+
+			// Find running channel
+			for _, ch := range m.channels {
+				if ch.Device() == portCfg.Device {
+					info.State = ch.State().String()
+					info.Stats = ch.Stats()
+					break
+				}
+			}
+			if info.State == "" {
+				info.State = "stopped"
+			}
+		}
+
+		ports = append(ports, info)
+	}
+
+	return ports
+}
+
+// findPortIndex finds a port config by ID and returns its index
+func (m *Manager) findPortIndex(id string) int {
+	for i := range m.config.Ports {
+		if m.config.Ports[i].ID() == id {
+			return i
+		}
+	}
+	return -1
+}
+
+// EnablePort enables a disabled port and starts its channel
+func (m *Manager) EnablePort(id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	idx := m.findPortIndex(id)
+	if idx < 0 {
+		return fmt.Errorf("port not found: %s", id)
+	}
+
+	portCfg := &m.config.Ports[idx]
+	if portCfg.Enabled {
+		return fmt.Errorf("port already enabled: %s", id)
+	}
+
+	portCfg.Enabled = true
+
+	// Start the channel
+	if err := m.startChannelLocked(portCfg); err != nil {
+		portCfg.Enabled = false // Rollback on failure
+		return fmt.Errorf("failed to start channel: %w", err)
+	}
+
+	// Save config
+	if err := m.config.Save(m.configPath); err != nil {
+		m.logger.Warn("Failed to save config after enabling port", "id", id, "error", err)
+	}
+
+	m.logger.Info("Enabled port", "id", id)
+	return nil
+}
+
+// DisablePort disables a running port and stops its channel
+func (m *Manager) DisablePort(id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	idx := m.findPortIndex(id)
+	if idx < 0 {
+		return fmt.Errorf("port not found: %s", id)
+	}
+
+	portCfg := &m.config.Ports[idx]
+	if !portCfg.Enabled {
+		return fmt.Errorf("port already disabled: %s", id)
+	}
+
+	// Stop the channel
+	if err := m.stopChannelLocked(portCfg); err != nil {
+		return fmt.Errorf("failed to stop channel: %w", err)
+	}
+
+	portCfg.Enabled = false
+
+	// Save config
+	if err := m.config.Save(m.configPath); err != nil {
+		m.logger.Warn("Failed to save config after disabling port", "id", id, "error", err)
+	}
+
+	m.logger.Info("Disabled port", "id", id)
+	return nil
+}
+
+// UpdatePortConfig updates port settings and restarts the channel if needed
+func (m *Manager) UpdatePortConfig(id string, updates map[string]interface{}) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	idx := m.findPortIndex(id)
+	if idx < 0 {
+		return fmt.Errorf("port not found: %s", id)
+	}
+
+	portCfg := &m.config.Ports[idx]
+	wasEnabled := portCfg.Enabled
+	needsRestart := false
+
+	// Apply updates
+	for key, value := range updates {
+		switch key {
+		case "baud_rate":
+			if v, ok := value.(float64); ok {
+				portCfg.BaudRate = int(v)
+				needsRestart = true
+			}
+		case "data_bits":
+			if v, ok := value.(float64); ok {
+				portCfg.DataBits = int(v)
+				needsRestart = true
+			}
+		case "parity":
+			if v, ok := value.(string); ok {
+				portCfg.Parity = v
+				needsRestart = true
+			}
+		case "stop_bits":
+			if v, ok := value.(float64); ok {
+				portCfg.StopBits = v
+				needsRestart = true
+			}
+		case "use_flow_control":
+			if v, ok := value.(bool); ok {
+				portCfg.UseFlowControl = &v
+				needsRestart = true
+			} else if value == nil {
+				portCfg.UseFlowControl = nil
+				needsRestart = true
+			}
+		case "listen_port":
+			if v, ok := value.(float64); ok {
+				portCfg.ListenPort = int(v)
+				needsRestart = true
+			}
+		case "path":
+			if v, ok := value.(string); ok && portCfg.IsHTTP() {
+				portCfg.Path = v
+				needsRestart = true
+			}
+		case "a_designation":
+			if v, ok := value.(string); ok {
+				portCfg.ADesignation = v
+				needsRestart = true
+			}
+		case "fips_code":
+			if v, ok := value.(string); ok {
+				portCfg.FIPSCode = v
+				needsRestart = true
+			}
+		case "vendor":
+			if v, ok := value.(string); ok {
+				portCfg.Vendor = v
+				needsRestart = true
+			}
+		case "county":
+			if v, ok := value.(string); ok {
+				portCfg.County = v
+			}
+		case "description":
+			if v, ok := value.(string); ok {
+				portCfg.Description = v
+			}
+		default:
+			return fmt.Errorf("unknown config field: %s", key)
+		}
+	}
+
+	// Restart channel if needed and was running
+	if needsRestart && wasEnabled {
+		if err := m.stopChannelLocked(portCfg); err != nil {
+			m.logger.Warn("Failed to stop channel for update", "id", id, "error", err)
+		}
+		if err := m.startChannelLocked(portCfg); err != nil {
+			return fmt.Errorf("failed to restart channel: %w", err)
+		}
+	}
+
+	// Save config
+	if err := m.config.Save(m.configPath); err != nil {
+		m.logger.Warn("Failed to save config after update", "id", id, "error", err)
+	}
+
+	m.logger.Info("Updated port config", "id", id, "updates", updates)
+	return nil
+}
+
+// AddPort adds a new port configuration
+func (m *Manager) AddPort(portCfg config.PortConfig) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Validate required fields
+	if portCfg.ADesignation == "" {
+		return fmt.Errorf("a_designation is required")
+	}
+
+	if portCfg.IsHTTP() {
+		if portCfg.Path == "" {
+			return fmt.Errorf("path is required for HTTP ports")
+		}
+		// Check for duplicate path
+		for _, p := range m.config.Ports {
+			if p.IsHTTP() && p.Path == portCfg.Path {
+				return fmt.Errorf("HTTP path already exists: %s", portCfg.Path)
+			}
+		}
+	} else {
+		if portCfg.Device == "" {
+			return fmt.Errorf("device is required for serial ports")
+		}
+		// Check for duplicate device
+		for _, p := range m.config.Ports {
+			if p.IsSerial() && p.Device == portCfg.Device {
+				return fmt.Errorf("device already configured: %s", portCfg.Device)
+			}
+		}
+	}
+
+	// Check for duplicate A designation
+	for _, p := range m.config.Ports {
+		if p.ADesignation == portCfg.ADesignation {
+			return fmt.Errorf("a_designation already in use: %s", portCfg.ADesignation)
+		}
+	}
+
+	// Set defaults
+	if portCfg.IsSerial() {
+		if portCfg.DataBits == 0 {
+			portCfg.DataBits = 8
+		}
+		if portCfg.StopBits == 0 {
+			portCfg.StopBits = 1
+		}
+		if portCfg.Parity == "" {
+			portCfg.Parity = "none"
+		}
+	}
+
+	// Add to config
+	m.config.Ports = append(m.config.Ports, portCfg)
+
+	// Start if enabled
+	if portCfg.Enabled {
+		if err := m.startChannelLocked(&m.config.Ports[len(m.config.Ports)-1]); err != nil {
+			// Remove from config on failure
+			m.config.Ports = m.config.Ports[:len(m.config.Ports)-1]
+			return fmt.Errorf("failed to start channel: %w", err)
+		}
+	}
+
+	// Save config
+	if err := m.config.Save(m.configPath); err != nil {
+		m.logger.Warn("Failed to save config after adding port", "error", err)
+	}
+
+	m.logger.Info("Added port", "id", portCfg.ID(), "type", portCfg.Type)
+	return nil
+}
+
+// DeletePort removes a port configuration
+func (m *Manager) DeletePort(id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	idx := m.findPortIndex(id)
+	if idx < 0 {
+		return fmt.Errorf("port not found: %s", id)
+	}
+
+	portCfg := &m.config.Ports[idx]
+
+	// Stop channel if running
+	if portCfg.Enabled {
+		if err := m.stopChannelLocked(portCfg); err != nil {
+			m.logger.Warn("Failed to stop channel before delete", "id", id, "error", err)
+		}
+	}
+
+	// Remove from config
+	m.config.Ports = append(m.config.Ports[:idx], m.config.Ports[idx+1:]...)
+
+	// Save config
+	if err := m.config.Save(m.configPath); err != nil {
+		m.logger.Warn("Failed to save config after deleting port", "id", id, "error", err)
+	}
+
+	m.logger.Info("Deleted port", "id", id)
+	return nil
+}
+
+// GetAvailableSerialPorts returns a list of serial ports not currently configured
+func (m *Manager) GetAvailableSerialPorts() []string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	// Standard COM ports on Linux (ttyS1-ttyS5, skipping ttyS0 which is console)
+	allPorts := []string{
+		"/dev/ttyS1", "/dev/ttyS2", "/dev/ttyS3", "/dev/ttyS4", "/dev/ttyS5",
+	}
+
+	// Build set of configured devices
+	configured := make(map[string]bool)
+	for _, p := range m.config.Ports {
+		if p.IsSerial() {
+			configured[p.Device] = true
+		}
+	}
+
+	// Return unconfigured ports
+	available := make([]string, 0)
+	for _, port := range allPorts {
+		if !configured[port] {
+			available = append(available, port)
+		}
+	}
+
+	return available
+}
+
+// startChannelLocked starts a channel for the given port config (must hold lock)
+func (m *Manager) startChannelLocked(portCfg *config.PortConfig) error {
+	if portCfg.IsHTTP() {
+		httpChannel, err := m.createHTTPChannel(*portCfg)
+		if err != nil {
+			return err
+		}
+		m.httpChannels = append(m.httpChannels, httpChannel)
+		m.logger.Info("Started HTTP channel", "path", portCfg.Path)
+	} else {
+		channel, err := NewChannel(
+			portCfg,
+			&m.config.Detection,
+			&m.config.NATS,
+			&m.config.Recovery,
+			&m.config.App,
+			&m.config.Logging,
+			m.natsConn,
+			m.logger.With("device", portCfg.Device),
+		)
+		if err != nil {
+			return err
+		}
+
+		if m.eventPublisher != nil {
+			channel.SetEventCallback(func(event output.Event) {
+				m.eventPublisher.Publish(event)
+			})
+		}
+
+		if err := channel.Start(m.ctx); err != nil {
+			return err
+		}
+
+		m.channels = append(m.channels, channel)
+		m.logger.Info("Started serial channel", "device", portCfg.Device)
+	}
+	return nil
+}
+
+// stopChannelLocked stops a channel for the given port config (must hold lock)
+func (m *Manager) stopChannelLocked(portCfg *config.PortConfig) error {
+	if portCfg.IsHTTP() {
+		for i, ch := range m.httpChannels {
+			if ch.Path() == portCfg.Path {
+				if err := ch.Stop(); err != nil {
+					return err
+				}
+				m.httpChannels = append(m.httpChannels[:i], m.httpChannels[i+1:]...)
+				m.logger.Info("Stopped HTTP channel", "path", portCfg.Path)
+				return nil
+			}
+		}
+	} else {
+		for i, ch := range m.channels {
+			if ch.Device() == portCfg.Device {
+				ch.Stop()
+				m.channels = append(m.channels[:i], m.channels[i+1:]...)
+				m.logger.Info("Stopped serial channel", "device", portCfg.Device)
+				return nil
+			}
+		}
+	}
+	return nil
+}
+
+// Config returns the current configuration
+func (m *Manager) Config() *config.Config {
+	return m.config
 }

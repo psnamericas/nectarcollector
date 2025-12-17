@@ -3,7 +3,7 @@
   "fips_code": "1314010004",
   "vendor": "viper",
   "county": "omaha",
-  "ports": [{"device": "ttyS1", "designation": "A1"}],
+  "ports": [{"device": "ttyS2", "designation": "A1", "baud_rate": 9600, "use_flow_control": false}],
   "dashboard_user": "psna",
   "dashboard_pass": "nectar2025"
 }

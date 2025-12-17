@@ -105,6 +105,8 @@ func TestIsTimeoutError(t *testing.T) {
 		{"connection refused", false},
 		{"permission denied", false},
 		{"no such device", false},
+		// Note: "multiple Read calls return no data or error" is handled by isNoDataError, not isTimeoutError
+		{"multiple Read calls return no data or error", false},
 	}
 
 	for _, tt := range tests {

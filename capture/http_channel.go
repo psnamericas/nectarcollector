@@ -177,3 +177,12 @@ func (h *HTTPChannel) Path() string {
 func (h *HTTPChannel) ADesignation() string {
 	return h.config.ADesignation
 }
+
+// Stop closes the HTTP channel's dual writer
+func (h *HTTPChannel) Stop() error {
+	h.logger.Info("Stopping HTTP channel", "path", h.config.Path)
+	if h.dualWriter != nil {
+		return h.dualWriter.Close()
+	}
+	return nil
+}
