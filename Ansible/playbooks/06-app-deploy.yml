@@ -96,8 +96,8 @@
         src: "{{ local_binary_path }}"
         dest: "{{ remote_binary_path }}"
         mode: '0755'
-        owner: root
-        group: root
+        owner: nectarcollector
+        group: nectarcollector
       when: needs_update
 
     - name: Start service after update
