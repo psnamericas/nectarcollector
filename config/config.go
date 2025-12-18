@@ -16,6 +16,7 @@ type Config struct {
 	Logging    LoggingConfig    `json:"logging"`
 	Monitoring MonitoringConfig `json:"monitoring"`
 	Recovery   RecoveryConfig   `json:"recovery"`
+	Forwarder  ForwarderConfig  `json:"forwarder"`
 }
 
 // AppConfig contains application-level settings
@@ -96,6 +97,14 @@ type RecoveryConfig struct {
 	ReconnectDelaySec    int  `json:"reconnect_delay_sec"`     // Initial reconnect delay
 	MaxReconnectDelaySec int  `json:"max_reconnect_delay_sec"` // Maximum reconnect delay
 	ExponentialBackoff   bool `json:"exponential_backoff"`     // Use exponential backoff
+}
+
+// ForwarderConfig contains settings for forwarding CDR data to a remote NATS server
+type ForwarderConfig struct {
+	Enabled       bool   `json:"enabled"`        // Enable forwarding to remote NATS
+	RemoteURL     string `json:"remote_url"`     // Remote NATS server URL (e.g., "nats://remote:4222")
+	RemoteSubject string `json:"remote_subject"` // Explicit subject to publish to (e.g., "ne.cdr.psna-ne-northeast-norfolk-01.1315010001")
+	RemoteCreds   string `json:"remote_creds"`   // Path to NATS credentials file (optional)
 }
 
 // Load reads and parses the configuration file

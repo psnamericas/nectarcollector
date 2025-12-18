@@ -5,5 +5,7 @@
   "county": "oneill",
   "ports": [{"device": "ttyS1", "designation": "A1"}],
   "dashboard_user": "psna",
-  "dashboard_pass": "nectar2025"
+  "dashboard_pass": "nectar2025",
+  "forwarder_remote_url": "nats://psna-capture-02:4222",
+  "forwarder_remote_subject": "ne.cdr.psna-ne-northcentral-oneill-01.1318880001"
 }

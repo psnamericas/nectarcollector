@@ -805,13 +805,16 @@ EOF
 generate_config_from_simple() {
     local setup_config="$1"
 
-    local hostname fips_code vendor county dashboard_user dashboard_pass
+    local hostname fips_code vendor county dashboard_user dashboard_pass forwarder_url forwarder_subject forwarder_creds
     hostname=$(jq -r '.hostname // ""' "$setup_config")
     fips_code=$(jq -r '.fips_code // "0000000000"' "$setup_config")
     vendor=$(jq -r '.vendor // "unknown"' "$setup_config")
     county=$(jq -r '.county // "unknown"' "$setup_config")
     dashboard_user=$(jq -r '.dashboard_user // ""' "$setup_config")
     dashboard_pass=$(jq -r '.dashboard_pass // ""' "$setup_config")
+    forwarder_url=$(jq -r '.forwarder_remote_url // ""' "$setup_config")
+    forwarder_subject=$(jq -r '.forwarder_remote_subject // ""' "$setup_config")
+    forwarder_creds=$(jq -r '.forwarder_remote_creds // ""' "$setup_config")
 
     # Get state prefix from hostname (psna-XX-...)
     local state_prefix
@@ -914,6 +917,26 @@ generate_config_from_simple() {
         ((designation++))
     done
 
+    # Build forwarder config
+    local forwarder_enabled="false"
+    local forwarder_json='{
+    "enabled": false
+  }'
+    if [[ -n "$forwarder_url" ]]; then
+        forwarder_enabled="true"
+        # Use explicit subject from config (required)
+        if [[ -z "$forwarder_subject" ]]; then
+            log ERROR "forwarder_remote_subject is required when forwarder_remote_url is set"
+            exit 1
+        fi
+        forwarder_json=$(jq -n \
+            --argjson enabled true \
+            --arg url "$forwarder_url" \
+            --arg subject "$forwarder_subject" \
+            --arg creds "$forwarder_creds" \
+            '{enabled: $enabled, remote_url: $url, remote_subject: $subject, remote_creds: $creds}')
+    fi
+
     # Generate full config
     cat > /etc/nectarcollector/config.json << EOF
 {
@@ -950,7 +973,8 @@ generate_config_from_simple() {
     "reconnect_delay_sec": 5,
     "max_reconnect_delay_sec": 300,
     "exponential_backoff": true
-  }
+  },
+  "forwarder": ${forwarder_json}
 }
 EOF
 
@@ -1066,6 +1090,9 @@ phase_nectarcollector_config() {
     "reconnect_delay_sec": 5,
     "max_reconnect_delay_sec": 300,
     "exponential_backoff": true
+  },
+  "forwarder": {
+    "enabled": false
   }
 }
 EOF
