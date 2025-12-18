@@ -12,5 +12,7 @@
   "county": "countyname",
   "ports": ["ttyS1"],
   "dashboard_user": "psna",
-  "dashboard_pass": "CHANGE_ME"
+  "dashboard_pass": "CHANGE_ME",
+  "forwarder_remote_url": "nats://psna-capture-02:4222",
+  "forwarder_remote_subject": "{state}.cdr.{hostname}.{fips_code}"
 }

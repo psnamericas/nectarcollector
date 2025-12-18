@@ -66,6 +66,10 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("recovery config: %w", err)
 	}
 
+	if err := c.validateForwarder(); err != nil {
+		return fmt.Errorf("forwarder config: %w", err)
+	}
+
 	return nil
 }
 
@@ -272,6 +276,34 @@ func (c *Config) validateRecovery() error {
 	if c.Recovery.MaxReconnectDelaySec < c.Recovery.ReconnectDelaySec {
 		return fmt.Errorf("max_reconnect_delay_sec (%d) must be >= reconnect_delay_sec (%d)",
 			c.Recovery.MaxReconnectDelaySec, c.Recovery.ReconnectDelaySec)
+	}
+
+	return nil
+}
+
+func (c *Config) validateForwarder() error {
+	// Forwarder is optional - only validate if enabled
+	if !c.Forwarder.Enabled {
+		return nil
+	}
+
+	if c.Forwarder.RemoteURL == "" {
+		return fmt.Errorf("remote_url is required when forwarder is enabled")
+	}
+
+	if !strings.HasPrefix(c.Forwarder.RemoteURL, "nats://") && !strings.HasPrefix(c.Forwarder.RemoteURL, "tls://") {
+		return fmt.Errorf("remote_url must start with nats:// or tls://, got: %s", c.Forwarder.RemoteURL)
+	}
+
+	if c.Forwarder.RemoteSubject == "" {
+		return fmt.Errorf("remote_subject is required when forwarder is enabled (e.g., \"ne.cdr.psna-ne-northeast-norfolk-01.1315010001\")")
+	}
+
+	// If creds file specified, check it exists
+	if c.Forwarder.RemoteCreds != "" {
+		if _, err := os.Stat(c.Forwarder.RemoteCreds); os.IsNotExist(err) {
+			return fmt.Errorf("remote_creds file does not exist: %s", c.Forwarder.RemoteCreds)
+		}
 	}
 
 	return nil

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"nectarcollector/config"
+	"nectarcollector/forward"
 	"nectarcollector/output"
 )
 
@@ -20,6 +21,7 @@ type Manager struct {
 	natsConn        *output.NATSConnection
 	healthPublisher *output.HealthPublisher
 	eventPublisher  *output.EventPublisher
+	forwarder       *forward.Forwarder
 	logger          *slog.Logger
 	ctx             context.Context // Context for starting new channels
 	mu              sync.RWMutex
@@ -154,6 +156,22 @@ func (m *Manager) Start(ctx context.Context) error {
 	})
 	m.healthPublisher.Start()
 
+	// Start forwarder if enabled
+	if m.config.Forwarder.Enabled {
+		m.forwarder = forward.New(&forward.ForwarderConfig{
+			Config:     &m.config.Forwarder,
+			InstanceID: m.config.App.InstanceID,
+			LocalConn:  m.natsConn.Conn(),
+			Logger:     m.logger.With("component", "forwarder"),
+		})
+		if err := m.forwarder.Start(ctx); err != nil {
+			m.logger.Error("Failed to start forwarder", "error", err)
+			// Non-fatal - capture continues without forwarding
+		} else {
+			m.logger.Info("Forwarder started", "remote_url", m.config.Forwarder.RemoteURL)
+		}
+	}
+
 	m.logger.Info("Capture manager started", "channels", startedCount)
 	return nil
 }
@@ -167,7 +185,12 @@ func (m *Manager) Stop() {
 		m.eventPublisher.PublishServiceStop("shutdown requested")
 	}
 
-	// Stop health publisher first (so it can send final heartbeat)
+	// Stop forwarder first (drains pending messages)
+	if m.forwarder != nil {
+		m.forwarder.Stop()
+	}
+
+	// Stop health publisher (so it can send final heartbeat)
 	if m.healthPublisher != nil {
 		m.healthPublisher.Stop()
 	}
@@ -333,12 +356,19 @@ func (m *Manager) GetAllStats() map[string]interface{} {
 		natsStats = &stats
 	}
 
-	return map[string]interface{}{
+	result := map[string]interface{}{
 		"instance_id":    m.config.App.InstanceID,
 		"nats_connected": m.NATSConnected(),
 		"nats":           natsStats,
 		"channels":       channelInfos,
 	}
+
+	// Add forwarder stats if enabled
+	if m.forwarder != nil {
+		result["forwarder"] = m.forwarder.Stats()
+	}
+
+	return result
 }
 
 // getHealthStats returns health stats for the health publisher
