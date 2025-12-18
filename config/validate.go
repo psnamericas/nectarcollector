@@ -30,7 +30,7 @@ var (
 	}
 
 	// A/B designation pattern: A1-A16 or B1-B16
-	aDesignationPattern = regexp.MustCompile(`^[AB]([1-9]|1[0-6])$`)
+	sideDesignationPattern = regexp.MustCompile(`^[AB]([1-9]|1[0-6])$`)
 
 	// FIPS code pattern: 10 digits
 	fipsCodePattern = regexp.MustCompile(`^\d{10}$`)
@@ -97,7 +97,7 @@ func (c *Config) validatePorts() error {
 	enabledCount := 0
 	devicesSeen := make(map[string]bool)
 	pathsSeen := make(map[string]bool)
-	aDesignationsSeen := make(map[string]bool)
+	sideDesignationsSeen := make(map[string]bool)
 
 	for i, port := range c.Ports {
 		// Validate port type
@@ -149,19 +149,19 @@ func (c *Config) validatePorts() error {
 		}
 
 		// Check A designation (required for all types)
-		if port.ADesignation == "" {
-			return fmt.Errorf("port %d (%s): a_designation is required", i, portID)
+		if port.SideDesignation == "" {
+			return fmt.Errorf("port %d (%s): side_designation is required", i, portID)
 		}
-		if !aDesignationPattern.MatchString(port.ADesignation) {
-			return fmt.Errorf("port %d (%s): a_designation must be A1-A16 or B1-B16, got: %s", i, portID, port.ADesignation)
+		if !sideDesignationPattern.MatchString(port.SideDesignation) {
+			return fmt.Errorf("port %d (%s): side_designation must be A1-A16 or B1-B16, got: %s", i, portID, port.SideDesignation)
 		}
 
 		// Check for duplicate A designations (among enabled ports)
-		if port.Enabled && aDesignationsSeen[port.ADesignation] {
-			return fmt.Errorf("port %d (%s): duplicate a_designation %s among enabled ports", i, portID, port.ADesignation)
+		if port.Enabled && sideDesignationsSeen[port.SideDesignation] {
+			return fmt.Errorf("port %d (%s): duplicate side_designation %s among enabled ports", i, portID, port.SideDesignation)
 		}
 		if port.Enabled {
-			aDesignationsSeen[port.ADesignation] = true
+			sideDesignationsSeen[port.SideDesignation] = true
 		}
 
 		// Validate FIPS code if specified

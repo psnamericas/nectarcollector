@@ -848,7 +848,7 @@ generate_config_from_simple() {
                 --arg county "$county" \
                 '{
                     device: $dev,
-                    a_designation: $a_des,
+                    side_designation: $a_des,
                     fips_code: $fips,
                     vendor: $vendor,
                     county: $county,
@@ -880,7 +880,7 @@ generate_config_from_simple() {
                         type: $type,
                         path: $path,
                         listen_port: $listen_port,
-                        a_designation: $a_des,
+                        side_designation: $a_des,
                         fips_code: $fips,
                         vendor: $vendor,
                         county: $county,
@@ -902,7 +902,7 @@ generate_config_from_simple() {
                     --arg county "$county" \
                     '{
                         device: $dev,
-                        a_designation: $a_des,
+                        side_designation: $a_des,
                         fips_code: $fips,
                         vendor: $vendor,
                         county: $county,
@@ -1038,7 +1038,7 @@ phase_nectarcollector_config() {
                 --arg fips "${fips_code:-0000000000}" \
                 '{
                     device: $dev,
-                    a_designation: $a_des,
+                    side_designation: $a_des,
                     fips_code: $fips,
                     vendor: "unknown",
                     county: "unknown",

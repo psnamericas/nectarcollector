@@ -33,15 +33,15 @@ type HealthStats struct {
 
 // ChannelHealth contains per-channel health data
 type ChannelHealth struct {
-	Device       string `json:"device"`
-	ADesignation string `json:"a"`
-	State        string `json:"state"`
-	BaudRate     int    `json:"baud"`       // Current detected baud rate
-	Reconnects   int64  `json:"reconnects"` // Number of reconnection attempts
-	BytesRead    int64  `json:"bytes"`
-	LinesRead    int64  `json:"lines"`
-	Errors       int64  `json:"errors"`
-	LastLineAgo  int64  `json:"last_line_ago_sec"` // Seconds since last line, -1 if never
+	Device          string `json:"device"`
+	SideDesignation string `json:"a"`
+	State           string `json:"state"`
+	BaudRate        int    `json:"baud"`       // Current detected baud rate
+	Reconnects      int64  `json:"reconnects"` // Number of reconnection attempts
+	BytesRead       int64  `json:"bytes"`
+	LinesRead       int64  `json:"lines"`
+	Errors          int64  `json:"errors"`
+	LastLineAgo     int64  `json:"last_line_ago_sec"` // Seconds since last line, -1 if never
 }
 
 // HealthMessage is the JSON payload published to NATS

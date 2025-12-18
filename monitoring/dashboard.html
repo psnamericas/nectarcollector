@@ -1214,6 +1214,7 @@
 
         <div class="footer">
             HoneyView | NectarCollector | Powered by 911 Logix
+            <span id="build-info"></span>
         </div>
     </div>
 
@@ -1235,7 +1236,7 @@
                 <!-- Common Identity Settings -->
                 <div class="form-group">
                     <label class="form-label">A Designation</label>
-                    <input type="text" class="form-input" id="setting-a-designation" placeholder="e.g., A1, B2">
+                    <input type="text" class="form-input" id="setting-side-designation" placeholder="e.g., A1, B2">
                 </div>
                 <div class="form-group">
                     <label class="form-label">FIPS Code (optional)</label>
@@ -1372,7 +1373,7 @@
 
                 <div class="form-group">
                     <label class="form-label">A Designation *</label>
-                    <input type="text" class="form-input" id="add-a-designation" placeholder="e.g., A1, B2" required>
+                    <input type="text" class="form-input" id="add-side-designation" placeholder="e.g., A1, B2" required>
                 </div>
 
                 <!-- Serial specific -->
@@ -1667,6 +1668,11 @@
                         `;
                     }).join('');
                 }
+
+                // Update version in footer
+                if (data.version) {
+                    document.getElementById('build-info').textContent = ` | v${data.version}`;
+                }
             } catch (error) {
                 console.error('Error updating system:', error);
             }
@@ -1756,7 +1762,7 @@
                     const currentVal = el.value || current;
                     el.innerHTML = '<option value="">Select...</option>';
                     data.channels.forEach(ch => {
-                        const identifier = `${ch.fips_code}-${ch.a_designation}`;
+                        const identifier = `${ch.fips_code}-${ch.side_designation}`;
                         const option = document.createElement('option');
                         option.value = identifier;
                         option.textContent = `${identifier}`;
@@ -1766,7 +1772,7 @@
                 });
 
                 channelsContainer.innerHTML = data.channels.map(ch => {
-                    const channelId = `${ch.fips_code}-${ch.a_designation}`;
+                    const channelId = `${ch.fips_code}-${ch.side_designation}`;
                     const isHTTP = ch.type === 'http';
 
                     // Handle different stats formats for serial vs HTTP channels
@@ -1820,7 +1826,7 @@
                     return `
                         <div class="channel-card">
                             <div class="channel-header">
-                                <div class="channel-name">${ch.a_designation} <span style="opacity:0.6;font-weight:normal;font-size:0.85em">(${shortDevice})</span><span class="activity-dot ${activityClass}"></span></div>
+                                <div class="channel-name">${ch.side_designation} <span style="opacity:0.6;font-weight:normal;font-size:0.85em">(${shortDevice})</span><span class="activity-dot ${activityClass}"></span></div>
                                 <div style="display:flex;gap:6px;align-items:center;">
                                     <div class="cable-status cable-${cableClass}" title="${signalDetails}">${cableStatus}</div>
                                     <div class="state-badge state-${ch.state}">${formatState(ch.state)}</div>
@@ -1890,7 +1896,7 @@
                 const aggregateBytesHistory = new Array(SPARKLINE_POINTS).fill(0);
 
                 data.channels.forEach(ch => {
-                    const channelId = `${ch.fips_code}-${ch.a_designation}`;
+                    const channelId = `${ch.fips_code}-${ch.side_designation}`;
                     const history = channelHistory[channelId];
                     if (history) {
                         const currentLines = history.linesPerSec[history.linesPerSec.length - 1] || 0;
@@ -2445,7 +2451,7 @@
                         <div class="port-config-card ${disabledClass}">
                             <div class="port-config-header">
                                 <div>
-                                    <div class="port-config-title">${port.a_designation}</div>
+                                    <div class="port-config-title">${port.side_designation}</div>
                                     <div class="port-config-subtitle">${subtitleText}</div>
                                 </div>
                                 <div class="port-config-header-right">
@@ -2514,7 +2520,7 @@
             document.getElementById('modal-port-id').value = portId;
             document.getElementById('modal-port-type').value = port.type;
             document.getElementById('modal-mode').value = 'edit';
-            document.getElementById('modal-title').textContent = `Settings: ${port.a_designation} (${portId})`;
+            document.getElementById('modal-title').textContent = `Settings: ${port.side_designation} (${portId})`;
 
             // Show delete button for editing existing ports
             document.getElementById('delete-port-btn').style.display = 'inline-block';
@@ -2523,7 +2529,7 @@
             const httpSettings = document.getElementById('http-settings');
 
             // Common identity fields
-            document.getElementById('setting-a-designation').value = port.a_designation || '';
+            document.getElementById('setting-side-designation').value = port.side_designation || '';
             document.getElementById('setting-fips-code').value = port.fips_code || '';
 
             if (port.type === 'serial') {
@@ -2574,8 +2580,8 @@
             const updates = {};
 
             // Common identity fields
-            const aDesignation = document.getElementById('setting-a-designation').value.trim();
-            if (aDesignation) updates.a_designation = aDesignation;
+            const sideDesignation = document.getElementById('setting-side-designation').value.trim();
+            if (sideDesignation) updates.side_designation = sideDesignation;
 
             const fipsCode = document.getElementById('setting-fips-code').value.trim();
             updates.fips_code = fipsCode; // Allow clearing
@@ -2673,7 +2679,7 @@
 
             // Reset form
             document.getElementById('add-port-type').value = 'serial';
-            document.getElementById('add-a-designation').value = '';
+            document.getElementById('add-side-designation').value = '';
             document.getElementById('add-device').value = '';
             document.getElementById('add-baud-rate').value = '0';
             document.getElementById('add-data-bits').value = '8';
@@ -2740,16 +2746,16 @@
 
         async function addNewPort() {
             const portType = document.getElementById('add-port-type').value;
-            const aDesignation = document.getElementById('add-a-designation').value.trim();
+            const sideDesignation = document.getElementById('add-side-designation').value.trim();
 
-            if (!aDesignation) {
+            if (!sideDesignation) {
                 showToast('A Designation is required', 'error');
                 return;
             }
 
             const portConfig = {
                 type: portType,
-                a_designation: aDesignation,
+                side_designation: sideDesignation,
                 enabled: document.getElementById('add-enabled').checked
             };
 
@@ -2802,7 +2808,7 @@
                 });
 
                 if (response.ok) {
-                    showToast(`Port ${aDesignation} added successfully`, 'success');
+                    showToast(`Port ${sideDesignation} added successfully`, 'success');
                     closeAddModal();
                     updatePortConfig();
                     updateStats();

@@ -139,12 +139,12 @@ func TestChannelInfo(t *testing.T) {
 		LinesRead: 50,
 	}
 	info := ChannelInfo{
-		Device:       "/dev/ttyS1",
-		Type:         "serial",
-		ADesignation: "A1",
-		FIPSCode:     "1234567890",
-		State:        "running",
-		Stats:        stats,
+		Device:          "/dev/ttyS1",
+		Type:            "serial",
+		SideDesignation: "A1",
+		FIPSCode:        "1234567890",
+		State:           "running",
+		Stats:           stats,
 	}
 
 	if info.Device != "/dev/ttyS1" {
@@ -153,8 +153,8 @@ func TestChannelInfo(t *testing.T) {
 	if info.Type != "serial" {
 		t.Errorf("Type = %q, want %q", info.Type, "serial")
 	}
-	if info.ADesignation != "A1" {
-		t.Errorf("ADesignation = %q, want %q", info.ADesignation, "A1")
+	if info.SideDesignation != "A1" {
+		t.Errorf("SideDesignation = %q, want %q", info.SideDesignation, "A1")
 	}
 	if info.FIPSCode != "1234567890" {
 		t.Errorf("FIPSCode = %q, want %q", info.FIPSCode, "1234567890")
@@ -194,17 +194,17 @@ func TestManagerGetPortConfigsWithPorts(t *testing.T) {
 		},
 		Ports: []config.PortConfig{
 			{
-				Type:         "serial",
-				Device:       "/dev/ttyS1",
-				ADesignation: "A1",
-				BaudRate:     9600,
-				Enabled:      true,
+				Type:            "serial",
+				Device:          "/dev/ttyS1",
+				SideDesignation: "A1",
+				BaudRate:        9600,
+				Enabled:         true,
 			},
 			{
-				Type:         "http",
-				Path:         "/cdr",
-				ADesignation: "B1",
-				Enabled:      true,
+				Type:            "http",
+				Path:            "/cdr",
+				SideDesignation: "B1",
+				Enabled:         true,
 			},
 		},
 	}
@@ -224,8 +224,8 @@ func TestManagerGetPortConfigsWithPorts(t *testing.T) {
 	if ports[0].Device != "/dev/ttyS1" {
 		t.Errorf("Port 0 Device = %q, want %q", ports[0].Device, "/dev/ttyS1")
 	}
-	if ports[0].ADesignation != "A1" {
-		t.Errorf("Port 0 ADesignation = %q, want %q", ports[0].ADesignation, "A1")
+	if ports[0].SideDesignation != "A1" {
+		t.Errorf("Port 0 SideDesignation = %q, want %q", ports[0].SideDesignation, "A1")
 	}
 	if ports[0].FIPSCode != "3100000000" {
 		t.Errorf("Port 0 FIPSCode = %q, want %q", ports[0].FIPSCode, "3100000000")
@@ -297,8 +297,8 @@ func TestManagerAddPortDuplicate(t *testing.T) {
 	cfg := &config.Config{
 		Ports: []config.PortConfig{
 			{
-				Device:       "/dev/ttyS1",
-				ADesignation: "A1",
+				Device:          "/dev/ttyS1",
+				SideDesignation: "A1",
 			},
 		},
 	}
@@ -306,8 +306,8 @@ func TestManagerAddPortDuplicate(t *testing.T) {
 
 	manager := NewManager(cfg, "", logger)
 	err := manager.AddPort(config.PortConfig{
-		Device:       "/dev/ttyS1",
-		ADesignation: "A2",
+		Device:          "/dev/ttyS1",
+		SideDesignation: "A2",
 	})
 
 	if err == nil {
@@ -315,12 +315,12 @@ func TestManagerAddPortDuplicate(t *testing.T) {
 	}
 }
 
-func TestManagerAddPortDuplicateADesignation(t *testing.T) {
+func TestManagerAddPortDuplicateSideDesignation(t *testing.T) {
 	cfg := &config.Config{
 		Ports: []config.PortConfig{
 			{
-				Device:       "/dev/ttyS1",
-				ADesignation: "A1",
+				Device:          "/dev/ttyS1",
+				SideDesignation: "A1",
 			},
 		},
 	}
@@ -328,12 +328,12 @@ func TestManagerAddPortDuplicateADesignation(t *testing.T) {
 
 	manager := NewManager(cfg, "", logger)
 	err := manager.AddPort(config.PortConfig{
-		Device:       "/dev/ttyS2",
-		ADesignation: "A1",
+		Device:          "/dev/ttyS2",
+		SideDesignation: "A1",
 	})
 
 	if err == nil {
-		t.Error("AddPort() should return error for duplicate A designation")
+		t.Error("AddPort() should return error for duplicate side designation")
 	}
 }
 
@@ -341,9 +341,9 @@ func TestManagerEnableAlreadyEnabled(t *testing.T) {
 	cfg := &config.Config{
 		Ports: []config.PortConfig{
 			{
-				Device:       "/dev/ttyS1",
-				ADesignation: "A1",
-				Enabled:      true,
+				Device:          "/dev/ttyS1",
+				SideDesignation: "A1",
+				Enabled:         true,
 			},
 		},
 	}
@@ -361,9 +361,9 @@ func TestManagerDisableAlreadyDisabled(t *testing.T) {
 	cfg := &config.Config{
 		Ports: []config.PortConfig{
 			{
-				Device:       "/dev/ttyS1",
-				ADesignation: "A1",
-				Enabled:      false,
+				Device:          "/dev/ttyS1",
+				SideDesignation: "A1",
+				Enabled:         false,
 			},
 		},
 	}
@@ -379,13 +379,13 @@ func TestManagerDisableAlreadyDisabled(t *testing.T) {
 
 func TestPortInfo(t *testing.T) {
 	info := PortInfo{
-		ID:           "ttyS1",
-		Type:         "serial",
-		Device:       "/dev/ttyS1",
-		ADesignation: "A1",
-		FIPSCode:     "3100000000",
-		Enabled:      true,
-		State:        "running",
+		ID:              "ttyS1",
+		Type:            "serial",
+		Device:          "/dev/ttyS1",
+		SideDesignation: "A1",
+		FIPSCode:        "3100000000",
+		Enabled:         true,
+		State:           "running",
 		Config: PortConfigDetails{
 			BaudRate:       9600,
 			DataBits:       8,
@@ -417,14 +417,14 @@ func TestPortInfo(t *testing.T) {
 
 func TestPortInfoHTTP(t *testing.T) {
 	info := PortInfo{
-		ID:           "/cdr",
-		Type:         "http",
-		Path:         "/cdr",
-		ListenPort:   8080,
-		ADesignation: "B1",
-		FIPSCode:     "3100000000",
-		Enabled:      true,
-		State:        "running",
+		ID:              "/cdr",
+		Type:            "http",
+		Path:            "/cdr",
+		ListenPort:      8080,
+		SideDesignation: "B1",
+		FIPSCode:        "3100000000",
+		Enabled:         true,
+		State:           "running",
 	}
 
 	if info.ID != "/cdr" {

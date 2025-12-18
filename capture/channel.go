@@ -158,7 +158,7 @@ func NewChannel(
 	}
 
 	// Create identifier in format: FIPSCODE-A1 (e.g., 1429010002-A1)
-	identifier := fmt.Sprintf("%s-%s", fipsCode, portCfg.ADesignation)
+	identifier := fmt.Sprintf("%s-%s", fipsCode, portCfg.SideDesignation)
 
 	// Create NATS subject in PEMA format: ne.cdr.intrado.lancaster.3110900001
 	// Format: {prefix}.{vendor}.{county}.{fips}
@@ -303,7 +303,7 @@ func (c *Channel) runCaptureSession(ctx context.Context) error {
 		if c.eventCallback != nil {
 			c.eventCallback(output.Event{
 				Type:    output.EventBaudDetected,
-				Channel: c.config.ADesignation,
+				Channel: c.config.SideDesignation,
 				Device:  c.config.Device,
 				Message: fmt.Sprintf("Baud rate auto-detected: %d", baudRate),
 				Details: map[string]any{
@@ -575,7 +575,7 @@ func (c *Channel) processLine(line string) {
 	}
 
 	// Build header
-	header := output.BuildHeader(fipsCode, c.config.ADesignation, time.Now().UTC())
+	header := output.BuildHeader(fipsCode, c.config.SideDesignation, time.Now().UTC())
 
 	// Write to both log and NATS
 	fullLine := header + line
@@ -606,7 +606,7 @@ func (c *Channel) handleReconnect(ctx context.Context) {
 	if c.eventCallback != nil {
 		c.eventCallback(output.Event{
 			Type:    output.EventReconnect,
-			Channel: c.config.ADesignation,
+			Channel: c.config.SideDesignation,
 			Device:  c.config.Device,
 			Message: fmt.Sprintf("Reconnection attempt %d", reconnects),
 			Details: map[string]any{
@@ -667,7 +667,7 @@ func (c *Channel) setState(state ChannelState) {
 	if c.eventCallback != nil && oldState != state {
 		c.eventCallback(output.Event{
 			Type:    output.EventStateChange,
-			Channel: c.config.ADesignation,
+			Channel: c.config.SideDesignation,
 			Device:  c.config.Device,
 			Message: oldState.String() + " -> " + state.String(),
 			Details: map[string]any{
@@ -680,14 +680,14 @@ func (c *Channel) setState(state ChannelState) {
 		if state == StateNoSignal && oldState != StateNoSignal {
 			c.eventCallback(output.Event{
 				Type:    output.EventSignalLost,
-				Channel: c.config.ADesignation,
+				Channel: c.config.SideDesignation,
 				Device:  c.config.Device,
 				Message: "RS-232 signal lost - cable may be disconnected",
 			})
 		} else if oldState == StateNoSignal && state == StateRunning {
 			c.eventCallback(output.Event{
 				Type:    output.EventSignalDetected,
-				Channel: c.config.ADesignation,
+				Channel: c.config.SideDesignation,
 				Device:  c.config.Device,
 				Message: "RS-232 signal detected - cable connected",
 			})
@@ -761,9 +761,9 @@ func (c *Channel) Device() string {
 	return c.config.Device
 }
 
-// ADesignation returns the A-designation (A1-A16)
-func (c *Channel) ADesignation() string {
-	return c.config.ADesignation
+// SideDesignation returns the A-designation (A1-A16)
+func (c *Channel) SideDesignation() string {
+	return c.config.SideDesignation
 }
 
 // FIPSCode returns the FIPS code for this channel (port-specific or app-level)

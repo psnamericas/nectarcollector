@@ -16,15 +16,15 @@ func TestHealthMessageJSON(t *testing.T) {
 		NATSConnected: true,
 		Channels: []ChannelHealth{
 			{
-				Device:       "/dev/ttyS1",
-				ADesignation: "A1",
-				State:        "running",
-				BaudRate:     9600,
-				Reconnects:   0,
-				BytesRead:    1234567,
-				LinesRead:    5432,
-				Errors:       0,
-				LastLineAgo:  5,
+				Device:          "/dev/ttyS1",
+				SideDesignation: "A1",
+				State:           "running",
+				BaudRate:        9600,
+				Reconnects:      0,
+				BytesRead:       1234567,
+				LinesRead:       5432,
+				Errors:          0,
+				LastLineAgo:     5,
 			},
 		},
 	}
@@ -65,26 +65,26 @@ func TestHealthMessageSize(t *testing.T) {
 		NATSConnected: true,
 		Channels: []ChannelHealth{
 			{
-				Device:       "/dev/ttyS1",
-				ADesignation: "A1",
-				State:        "running",
-				BaudRate:     115200,
-				Reconnects:   99,
-				BytesRead:    999999999,
-				LinesRead:    9999999,
-				Errors:       999,
-				LastLineAgo:  999999,
+				Device:          "/dev/ttyS1",
+				SideDesignation: "A1",
+				State:           "running",
+				BaudRate:        115200,
+				Reconnects:      99,
+				BytesRead:       999999999,
+				LinesRead:       9999999,
+				Errors:          999,
+				LastLineAgo:     999999,
 			},
 			{
-				Device:       "/dev/ttyS2",
-				ADesignation: "A2",
-				State:        "running",
-				BaudRate:     115200,
-				Reconnects:   99,
-				BytesRead:    999999999,
-				LinesRead:    9999999,
-				Errors:       999,
-				LastLineAgo:  999999,
+				Device:          "/dev/ttyS2",
+				SideDesignation: "A2",
+				State:           "running",
+				BaudRate:        115200,
+				Reconnects:      99,
+				BytesRead:       999999999,
+				LinesRead:       9999999,
+				Errors:          999,
+				LastLineAgo:     999999,
 			},
 		},
 	}
@@ -137,15 +137,15 @@ func TestBuildHealthSubject(t *testing.T) {
 
 func TestChannelHealthJSON(t *testing.T) {
 	ch := ChannelHealth{
-		Device:       "/dev/ttyS1",
-		ADesignation: "A1",
-		State:        "waiting_for_nats",
-		BaudRate:     9600,
-		Reconnects:   0,
-		BytesRead:    0,
-		LinesRead:    0,
-		Errors:       0,
-		LastLineAgo:  -1,
+		Device:          "/dev/ttyS1",
+		SideDesignation: "A1",
+		State:           "waiting_for_nats",
+		BaudRate:        9600,
+		Reconnects:      0,
+		BytesRead:       0,
+		LinesRead:       0,
+		Errors:          0,
+		LastLineAgo:     -1,
 	}
 
 	data, err := json.Marshal(ch)
@@ -156,7 +156,7 @@ func TestChannelHealthJSON(t *testing.T) {
 	// Verify JSON field names are short
 	jsonStr := string(data)
 	if !contains(jsonStr, `"a"`) {
-		t.Error("ADesignation should serialize as 'a'")
+		t.Error("SideDesignation should serialize as 'a'")
 	}
 	if !contains(jsonStr, `"baud"`) {
 		t.Error("BaudRate should serialize as 'baud'")

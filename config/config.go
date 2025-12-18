@@ -34,21 +34,21 @@ const (
 
 // PortConfig defines configuration for a capture channel (serial or HTTP)
 type PortConfig struct {
-	Type           string  `json:"type"`             // "serial" (default) or "http"
-	Device         string  `json:"device"`           // Serial: e.g., "/dev/ttyUSB0"
-	Path           string  `json:"path"`             // HTTP: endpoint path, e.g., "/cdr"
-	ListenPort     int     `json:"listen_port"`      // HTTP: port to listen on (0 = use monitoring port)
-	ADesignation   string  `json:"a_designation"`    // "A1" through "A16" or "B1" through "B16"
-	FIPSCode       string  `json:"fips_code"`        // Optional override for this port
-	Vendor         string  `json:"vendor"`           // CPE vendor: "intrado", "solacom", "zetron", "vesta", etc.
-	County         string  `json:"county"`           // County name (lowercase): "lancaster", "douglas", etc.
-	BaudRate       int     `json:"baud_rate"`        // Serial: 0 = auto-detect
-	DataBits       int     `json:"data_bits"`        // Serial: 5, 6, 7, or 8 (default: 8)
-	Parity         string  `json:"parity"`           // Serial: "none", "odd", "even", "mark", "space" (default: "none")
-	StopBits       float64 `json:"stop_bits"`        // Serial: 1, 1.5, or 2 (default: 1)
-	UseFlowControl *bool   `json:"use_flow_control"` // Serial: nil = auto-detect
-	Enabled        bool    `json:"enabled"`
-	Description    string  `json:"description"`
+	Type            string  `json:"type"`             // "serial" (default) or "http"
+	Device          string  `json:"device"`           // Serial: e.g., "/dev/ttyUSB0"
+	Path            string  `json:"path"`             // HTTP: endpoint path, e.g., "/cdr"
+	ListenPort      int     `json:"listen_port"`      // HTTP: port to listen on (0 = use monitoring port)
+	SideDesignation string  `json:"side_designation"` // "A1" through "A16" or "B1" through "B16"
+	FIPSCode        string  `json:"fips_code"`        // Optional override for this port
+	Vendor          string  `json:"vendor"`           // CPE vendor: "intrado", "solacom", "zetron", "vesta", etc.
+	County          string  `json:"county"`           // County name (lowercase): "lancaster", "douglas", etc.
+	BaudRate        int     `json:"baud_rate"`        // Serial: 0 = auto-detect
+	DataBits        int     `json:"data_bits"`        // Serial: 5, 6, 7, or 8 (default: 8)
+	Parity          string  `json:"parity"`           // Serial: "none", "odd", "even", "mark", "space" (default: "none")
+	StopBits        float64 `json:"stop_bits"`        // Serial: 1, 1.5, or 2 (default: 1)
+	UseFlowControl  *bool   `json:"use_flow_control"` // Serial: nil = auto-detect
+	Enabled         bool    `json:"enabled"`
+	Description     string  `json:"description"`
 }
 
 // IsSerial returns true if this is a serial port config

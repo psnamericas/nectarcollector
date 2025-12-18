@@ -52,7 +52,7 @@ func NewHTTPChannel(
 		config:     portCfg,
 		appConfig:  appCfg,
 		dualWriter: dualWriter,
-		logger:     logger.With("channel", portCfg.ADesignation, "path", portCfg.Path),
+		logger:     logger.With("channel", portCfg.SideDesignation, "path", portCfg.Path),
 		stats: HTTPChannelStats{
 			StartTime: time.Now(),
 		},
@@ -96,7 +96,7 @@ func (h *HTTPChannel) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Build header and write
-	header := output.BuildHeader(fipsCode, h.config.ADesignation, time.Now().UTC())
+	header := output.BuildHeader(fipsCode, h.config.SideDesignation, time.Now().UTC())
 	fullRecord := header + record
 
 	if err := h.dualWriter.WriteLine(fullRecord); err != nil {
@@ -173,9 +173,9 @@ func (h *HTTPChannel) Path() string {
 	return h.config.Path
 }
 
-// ADesignation returns the A designation for this channel
-func (h *HTTPChannel) ADesignation() string {
-	return h.config.ADesignation
+// SideDesignation returns the A designation for this channel
+func (h *HTTPChannel) SideDesignation() string {
+	return h.config.SideDesignation
 }
 
 // Stop closes the HTTP channel's dual writer

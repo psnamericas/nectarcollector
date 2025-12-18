@@ -22,18 +22,21 @@ all:
     # -------------------------------------------------------
     general_servers:
       hosts:
-        pollen-pusher.tailc90ef2.ts.net:
-          ansible_host: pollen-pusher.tailc90ef2.ts.net
+        psna-dev-nectarcollector-01.tailc90ef2.ts.net:
+          ansible_host: psna-dev-nectarcollector-01.tailc90ef2.ts.net
           ansible_user: root
           ansible_become: true
-          site_config: pollen-pusher.json
-          # Prod environment Settings for Jetstream
+          site_config: psna-dev-nectarcollector-01.json
+          stream_health_max_bytes: "5G"
+          stream_cdr_max_bytes: "50G"
+          stream_events_max_bytes: "1G"
+        psna-ne-eastcentral-columbus-01:
+          ansible_host: psna-ne-eastcentral-columbus-01
+          ansible_user: root
+          ansible_become: true
+          site_config: psna-ne-eastcentral-columbus-01.json
           stream_health_max_bytes: "5G"
           stream_cdr_max_bytes: "50G"
           stream_events_max_bytes: "1G"
 
-          # Test environment Settings for Jetstream
-          #  stream_health_max_bytes: "1G"
-          #  stream_cdr_max_bytes: "5G"
-          #  stream_events_max_bytes: "500M"
 

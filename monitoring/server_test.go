@@ -33,7 +33,7 @@ func TestNewServer(t *testing.T) {
 	manager := newTestManager()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
 
-	server := NewServer(cfg, manager, "/var/log", logger)
+	server := NewServer(cfg, manager, "/var/log", logger, "1.0.0")
 
 	if server == nil {
 		t.Fatal("NewServer() returned nil")
@@ -53,7 +53,7 @@ func TestHandleHealth(t *testing.T) {
 	cfg := &config.MonitoringConfig{Port: 8080}
 	manager := newTestManager()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
-	server := NewServer(cfg, manager, "/var/log", logger)
+	server := NewServer(cfg, manager, "/var/log", logger, "1.0.0")
 
 	req := httptest.NewRequest("GET", "/api/health", nil)
 	rr := httptest.NewRecorder()
@@ -86,7 +86,7 @@ func TestHandleStats(t *testing.T) {
 	cfg := &config.MonitoringConfig{Port: 8080}
 	manager := newTestManager()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
-	server := NewServer(cfg, manager, "/var/log", logger)
+	server := NewServer(cfg, manager, "/var/log", logger, "1.0.0")
 
 	req := httptest.NewRequest("GET", "/api/stats", nil)
 	rr := httptest.NewRecorder()
@@ -116,7 +116,7 @@ func TestHandleFeedMissingChannel(t *testing.T) {
 	cfg := &config.MonitoringConfig{Port: 8080}
 	manager := newTestManager()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
-	server := NewServer(cfg, manager, "/var/log", logger)
+	server := NewServer(cfg, manager, "/var/log", logger, "1.0.0")
 
 	req := httptest.NewRequest("GET", "/api/feed", nil)
 	rr := httptest.NewRecorder()
@@ -133,7 +133,7 @@ func TestHandleFeedWithChannel(t *testing.T) {
 	cfg := &config.MonitoringConfig{Port: 8080}
 	manager := newTestManager()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
-	server := NewServer(cfg, manager, tmpDir, logger)
+	server := NewServer(cfg, manager, tmpDir, logger, "1.0.0")
 
 	// Create a test log file
 	logContent := "line1\nline2\nline3\n"
@@ -174,7 +174,7 @@ func TestHandleFeedWithCount(t *testing.T) {
 	cfg := &config.MonitoringConfig{Port: 8080}
 	manager := newTestManager()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
-	server := NewServer(cfg, manager, tmpDir, logger)
+	server := NewServer(cfg, manager, tmpDir, logger, "1.0.0")
 
 	// Create a test log file with more lines
 	var content string
@@ -214,7 +214,7 @@ func TestHandleFeedMaxCount(t *testing.T) {
 	cfg := &config.MonitoringConfig{Port: 8080}
 	manager := newTestManager()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
-	server := NewServer(cfg, manager, tmpDir, logger)
+	server := NewServer(cfg, manager, tmpDir, logger, "1.0.0")
 
 	// Create a test log file with many lines
 	var content string
@@ -252,7 +252,7 @@ func TestHandleFeedNonExistentFile(t *testing.T) {
 	cfg := &config.MonitoringConfig{Port: 8080}
 	manager := newTestManager()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
-	server := NewServer(cfg, manager, tmpDir, logger)
+	server := NewServer(cfg, manager, tmpDir, logger, "1.0.0")
 
 	req := httptest.NewRequest("GET", "/api/feed?channel=nonexistent", nil)
 	rr := httptest.NewRecorder()
@@ -282,7 +282,7 @@ func TestHandleDashboard(t *testing.T) {
 	cfg := &config.MonitoringConfig{Port: 8080}
 	manager := newTestManager()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
-	server := NewServer(cfg, manager, "/var/log", logger)
+	server := NewServer(cfg, manager, "/var/log", logger, "1.0.0")
 
 	req := httptest.NewRequest("GET", "/", nil)
 	rr := httptest.NewRecorder()
@@ -313,7 +313,7 @@ func TestBasicAuth(t *testing.T) {
 	}
 	manager := newTestManager()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
-	server := NewServer(cfg, manager, "/var/log", logger)
+	server := NewServer(cfg, manager, "/var/log", logger, "1.0.0")
 
 	// Create a handler wrapped with basic auth
 	handler := server.basicAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -358,7 +358,7 @@ func TestBasicAuthWWWAuthenticate(t *testing.T) {
 	}
 	manager := newTestManager()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
-	server := NewServer(cfg, manager, "/var/log", logger)
+	server := NewServer(cfg, manager, "/var/log", logger, "1.0.0")
 
 	handler := server.basicAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -480,17 +480,17 @@ func newTestManagerWithPorts() *capture.Manager {
 		},
 		Ports: []config.PortConfig{
 			{
-				Type:         "serial",
-				Device:       "/dev/ttyS1",
-				ADesignation: "A1",
-				BaudRate:     9600,
-				Enabled:      true,
+				Type:            "serial",
+				Device:          "/dev/ttyS1",
+				SideDesignation: "A1",
+				BaudRate:        9600,
+				Enabled:         true,
 			},
 			{
-				Type:         "http",
-				Path:         "/cdr",
-				ADesignation: "B1",
-				Enabled:      true,
+				Type:            "http",
+				Path:            "/cdr",
+				SideDesignation: "B1",
+				Enabled:         true,
 			},
 		},
 	}
@@ -502,7 +502,7 @@ func TestHandlePortsConfig(t *testing.T) {
 	cfg := &config.MonitoringConfig{Port: 8080}
 	manager := newTestManagerWithPorts()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
-	server := NewServer(cfg, manager, "/var/log", logger)
+	server := NewServer(cfg, manager, "/var/log", logger, "1.0.0")
 
 	req := httptest.NewRequest("GET", "/api/ports/config", nil)
 	rr := httptest.NewRecorder()
@@ -531,7 +531,7 @@ func TestHandlePortConfigGetNotFound(t *testing.T) {
 	cfg := &config.MonitoringConfig{Port: 8080}
 	manager := newTestManager()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
-	server := NewServer(cfg, manager, "/var/log", logger)
+	server := NewServer(cfg, manager, "/var/log", logger, "1.0.0")
 
 	req := httptest.NewRequest("GET", "/api/ports/config/nonexistent", nil)
 	rr := httptest.NewRecorder()
@@ -547,7 +547,7 @@ func TestHandlePortEnableNotFound(t *testing.T) {
 	cfg := &config.MonitoringConfig{Port: 8080}
 	manager := newTestManager()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
-	server := NewServer(cfg, manager, "/var/log", logger)
+	server := NewServer(cfg, manager, "/var/log", logger, "1.0.0")
 
 	req := httptest.NewRequest("POST", "/api/ports/config/nonexistent/enable", nil)
 	rr := httptest.NewRecorder()
@@ -563,7 +563,7 @@ func TestHandlePortDisableNotFound(t *testing.T) {
 	cfg := &config.MonitoringConfig{Port: 8080}
 	manager := newTestManager()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
-	server := NewServer(cfg, manager, "/var/log", logger)
+	server := NewServer(cfg, manager, "/var/log", logger, "1.0.0")
 
 	req := httptest.NewRequest("POST", "/api/ports/config/nonexistent/disable", nil)
 	rr := httptest.NewRecorder()
@@ -579,7 +579,7 @@ func TestHandlePortDeleteNotFound(t *testing.T) {
 	cfg := &config.MonitoringConfig{Port: 8080}
 	manager := newTestManager()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
-	server := NewServer(cfg, manager, "/var/log", logger)
+	server := NewServer(cfg, manager, "/var/log", logger, "1.0.0")
 
 	req := httptest.NewRequest("DELETE", "/api/ports/config/nonexistent", nil)
 	rr := httptest.NewRecorder()
@@ -595,7 +595,7 @@ func TestHandleAvailablePorts(t *testing.T) {
 	cfg := &config.MonitoringConfig{Port: 8080}
 	manager := newTestManager()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
-	server := NewServer(cfg, manager, "/var/log", logger)
+	server := NewServer(cfg, manager, "/var/log", logger, "1.0.0")
 
 	req := httptest.NewRequest("GET", "/api/ports/available", nil)
 	rr := httptest.NewRecorder()

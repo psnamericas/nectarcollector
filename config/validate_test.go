@@ -15,10 +15,10 @@ func validConfig(t *testing.T) *Config {
 		},
 		Ports: []PortConfig{
 			{
-				Device:       "/dev/ttyS1",
-				ADesignation: "A1",
-				BaudRate:     9600,
-				Enabled:      true,
+				Device:          "/dev/ttyS1",
+				SideDesignation: "A1",
+				BaudRate:        9600,
+				Enabled:         true,
 			},
 		},
 		Detection: DetectionConfig{
@@ -132,28 +132,28 @@ func TestValidatePortConfig(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "missing a_designation",
-			modify:  func(c *Config) { c.Ports[0].ADesignation = "" },
+			name:    "missing side_designation",
+			modify:  func(c *Config) { c.Ports[0].SideDesignation = "" },
 			wantErr: true,
 		},
 		{
-			name:    "invalid a_designation A0",
-			modify:  func(c *Config) { c.Ports[0].ADesignation = "A0" },
+			name:    "invalid side_designation A0",
+			modify:  func(c *Config) { c.Ports[0].SideDesignation = "A0" },
 			wantErr: true,
 		},
 		{
-			name:    "invalid a_designation A17",
-			modify:  func(c *Config) { c.Ports[0].ADesignation = "A17" },
+			name:    "invalid side_designation A17",
+			modify:  func(c *Config) { c.Ports[0].SideDesignation = "A17" },
 			wantErr: true,
 		},
 		{
-			name:    "valid a_designation B1",
-			modify:  func(c *Config) { c.Ports[0].ADesignation = "B1" },
+			name:    "valid side_designation B1",
+			modify:  func(c *Config) { c.Ports[0].SideDesignation = "B1" },
 			wantErr: false,
 		},
 		{
-			name:    "valid a_designation A16",
-			modify:  func(c *Config) { c.Ports[0].ADesignation = "A16" },
+			name:    "valid side_designation A16",
+			modify:  func(c *Config) { c.Ports[0].SideDesignation = "A16" },
 			wantErr: false,
 		},
 		{
@@ -170,31 +170,31 @@ func TestValidatePortConfig(t *testing.T) {
 			name: "duplicate device",
 			modify: func(c *Config) {
 				c.Ports = append(c.Ports, PortConfig{
-					Device:       "/dev/ttyS1",
-					ADesignation: "A2",
-					Enabled:      true,
+					Device:          "/dev/ttyS1",
+					SideDesignation: "A2",
+					Enabled:         true,
 				})
 			},
 			wantErr: true,
 		},
 		{
-			name: "duplicate a_designation among enabled",
+			name: "duplicate side_designation among enabled",
 			modify: func(c *Config) {
 				c.Ports = append(c.Ports, PortConfig{
-					Device:       "/dev/ttyS2",
-					ADesignation: "A1",
-					Enabled:      true,
+					Device:          "/dev/ttyS2",
+					SideDesignation: "A1",
+					Enabled:         true,
 				})
 			},
 			wantErr: true,
 		},
 		{
-			name: "duplicate a_designation with one disabled is ok",
+			name: "duplicate side_designation with one disabled is ok",
 			modify: func(c *Config) {
 				c.Ports = append(c.Ports, PortConfig{
-					Device:       "/dev/ttyS2",
-					ADesignation: "A1",
-					Enabled:      false,
+					Device:          "/dev/ttyS2",
+					SideDesignation: "A1",
+					Enabled:         false,
 				})
 			},
 			wantErr: false,
@@ -209,10 +209,10 @@ func TestValidatePortConfig(t *testing.T) {
 			name: "valid http port",
 			modify: func(c *Config) {
 				c.Ports[0] = PortConfig{
-					Type:         PortTypeHTTP,
-					Path:         "/cdr",
-					ADesignation: "A1",
-					Enabled:      true,
+					Type:            PortTypeHTTP,
+					Path:            "/cdr",
+					SideDesignation: "A1",
+					Enabled:         true,
 				}
 			},
 			wantErr: false,
@@ -221,10 +221,10 @@ func TestValidatePortConfig(t *testing.T) {
 			name: "http port missing path",
 			modify: func(c *Config) {
 				c.Ports[0] = PortConfig{
-					Type:         PortTypeHTTP,
-					Path:         "",
-					ADesignation: "A1",
-					Enabled:      true,
+					Type:            PortTypeHTTP,
+					Path:            "",
+					SideDesignation: "A1",
+					Enabled:         true,
 				}
 			},
 			wantErr: true,
@@ -233,10 +233,10 @@ func TestValidatePortConfig(t *testing.T) {
 			name: "http port path without leading slash",
 			modify: func(c *Config) {
 				c.Ports[0] = PortConfig{
-					Type:         PortTypeHTTP,
-					Path:         "cdr",
-					ADesignation: "A1",
-					Enabled:      true,
+					Type:            PortTypeHTTP,
+					Path:            "cdr",
+					SideDesignation: "A1",
+					Enabled:         true,
 				}
 			},
 			wantErr: true,
@@ -245,11 +245,11 @@ func TestValidatePortConfig(t *testing.T) {
 			name: "http port with valid listen_port",
 			modify: func(c *Config) {
 				c.Ports[0] = PortConfig{
-					Type:         PortTypeHTTP,
-					Path:         "/cdr",
-					ListenPort:   8081,
-					ADesignation: "A1",
-					Enabled:      true,
+					Type:            PortTypeHTTP,
+					Path:            "/cdr",
+					ListenPort:      8081,
+					SideDesignation: "A1",
+					Enabled:         true,
 				}
 			},
 			wantErr: false,
@@ -258,11 +258,11 @@ func TestValidatePortConfig(t *testing.T) {
 			name: "http port with invalid listen_port too high",
 			modify: func(c *Config) {
 				c.Ports[0] = PortConfig{
-					Type:         PortTypeHTTP,
-					Path:         "/cdr",
-					ListenPort:   65536,
-					ADesignation: "A1",
-					Enabled:      true,
+					Type:            PortTypeHTTP,
+					Path:            "/cdr",
+					ListenPort:      65536,
+					SideDesignation: "A1",
+					Enabled:         true,
 				}
 			},
 			wantErr: true,
@@ -271,11 +271,11 @@ func TestValidatePortConfig(t *testing.T) {
 			name: "http port with invalid listen_port negative",
 			modify: func(c *Config) {
 				c.Ports[0] = PortConfig{
-					Type:         PortTypeHTTP,
-					Path:         "/cdr",
-					ListenPort:   -1,
-					ADesignation: "A1",
-					Enabled:      true,
+					Type:            PortTypeHTTP,
+					Path:            "/cdr",
+					ListenPort:      -1,
+					SideDesignation: "A1",
+					Enabled:         true,
 				}
 			},
 			wantErr: true,
@@ -284,8 +284,8 @@ func TestValidatePortConfig(t *testing.T) {
 			name: "duplicate http paths on same port",
 			modify: func(c *Config) {
 				c.Ports = []PortConfig{
-					{Type: PortTypeHTTP, Path: "/cdr", ListenPort: 8081, ADesignation: "A1", Enabled: true},
-					{Type: PortTypeHTTP, Path: "/cdr", ListenPort: 8081, ADesignation: "A2", Enabled: true},
+					{Type: PortTypeHTTP, Path: "/cdr", ListenPort: 8081, SideDesignation: "A1", Enabled: true},
+					{Type: PortTypeHTTP, Path: "/cdr", ListenPort: 8081, SideDesignation: "A2", Enabled: true},
 				}
 			},
 			wantErr: true,
@@ -294,8 +294,8 @@ func TestValidatePortConfig(t *testing.T) {
 			name: "same http path on different ports is ok",
 			modify: func(c *Config) {
 				c.Ports = []PortConfig{
-					{Type: PortTypeHTTP, Path: "/cdr", ListenPort: 8081, ADesignation: "A1", Enabled: true},
-					{Type: PortTypeHTTP, Path: "/cdr", ListenPort: 8082, ADesignation: "A2", Enabled: true},
+					{Type: PortTypeHTTP, Path: "/cdr", ListenPort: 8081, SideDesignation: "A1", Enabled: true},
+					{Type: PortTypeHTTP, Path: "/cdr", ListenPort: 8082, SideDesignation: "A2", Enabled: true},
 				}
 			},
 			wantErr: false,
@@ -311,8 +311,8 @@ func TestValidatePortConfig(t *testing.T) {
 			name: "mixed serial and http ports",
 			modify: func(c *Config) {
 				c.Ports = []PortConfig{
-					{Type: PortTypeSerial, Device: "/dev/ttyS1", ADesignation: "A1", Enabled: true},
-					{Type: PortTypeHTTP, Path: "/cdr", ListenPort: 8081, ADesignation: "A2", Enabled: true},
+					{Type: PortTypeSerial, Device: "/dev/ttyS1", SideDesignation: "A1", Enabled: true},
+					{Type: PortTypeHTTP, Path: "/cdr", ListenPort: 8081, SideDesignation: "A2", Enabled: true},
 				}
 			},
 			wantErr: false,
@@ -601,18 +601,18 @@ func TestValidBaudRates(t *testing.T) {
 	}
 }
 
-func TestADesignationPattern(t *testing.T) {
+func TestSideDesignationPattern(t *testing.T) {
 	valid := []string{"A1", "A2", "A9", "A10", "A15", "A16"}
 	for _, s := range valid {
-		if !aDesignationPattern.MatchString(s) {
-			t.Errorf("Expected %q to be a valid A designation", s)
+		if !sideDesignationPattern.MatchString(s) {
+			t.Errorf("Expected %q to be a valid side designation", s)
 		}
 	}
 
 	invalid := []string{"A0", "A17", "A100", "B17", "C1", "a1", "1A", "A", ""}
 	for _, s := range invalid {
-		if aDesignationPattern.MatchString(s) {
-			t.Errorf("Expected %q to be an invalid A designation", s)
+		if sideDesignationPattern.MatchString(s) {
+			t.Errorf("Expected %q to be an invalid side designation", s)
 		}
 	}
 }

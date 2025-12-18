@@ -20,7 +20,7 @@ func TestLoadValidConfig(t *testing.T) {
 		"ports": [
 			{
 				"device": "/dev/ttyS1",
-				"a_designation": "A1",
+				"side_designation": "A1",
 				"baud_rate": 9600,
 				"enabled": true
 			}

@@ -57,13 +57,13 @@ Create a configuration file (see `configs/example-config.json`):
   "ports": [
     {
       "device": "/dev/ttyUSB0",
-      "a_designation": "A1",
+      "side_designation": "A1",
       "enabled": true,
       "description": "Serial feed - auto-detect baud rate"
     },
     {
       "device": "/dev/ttyUSB1",
-      "a_designation": "A2",
+      "side_designation": "A2",
       "baud_rate": 9600,
       "enabled": true,
       "description": "Serial feed - fixed baud rate"
@@ -72,7 +72,7 @@ Create a configuration file (see `configs/example-config.json`):
       "type": "http",
       "path": "/NetworkLogger/Primary/Recorder",
       "listen_port": 8081,
-      "a_designation": "B1",
+      "side_designation": "B1",
       "enabled": true,
       "description": "HTTP POST endpoint for ECW"
     }

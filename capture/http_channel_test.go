@@ -33,10 +33,10 @@ func (m *mockDualWriter) Close() error {
 
 func TestNewHTTPChannel(t *testing.T) {
 	portCfg := config.PortConfig{
-		Type:         "http",
-		Path:         "/test/endpoint",
-		ADesignation: "A1",
-		FIPSCode:     "1234567890",
+		Type:            "http",
+		Path:            "/test/endpoint",
+		SideDesignation: "A1",
+		FIPSCode:        "1234567890",
 	}
 	appCfg := config.AppConfig{
 		Name:       "Test",
@@ -49,8 +49,8 @@ func TestNewHTTPChannel(t *testing.T) {
 	if ch.Path() != "/test/endpoint" {
 		t.Errorf("Path() = %q, want %q", ch.Path(), "/test/endpoint")
 	}
-	if ch.ADesignation() != "A1" {
-		t.Errorf("ADesignation() = %q, want %q", ch.ADesignation(), "A1")
+	if ch.SideDesignation() != "A1" {
+		t.Errorf("SideDesignation() = %q, want %q", ch.SideDesignation(), "A1")
 	}
 	if ch.Config().FIPSCode != "1234567890" {
 		t.Errorf("Config().FIPSCode = %q, want %q", ch.Config().FIPSCode, "1234567890")
@@ -59,9 +59,9 @@ func TestNewHTTPChannel(t *testing.T) {
 
 func TestHTTPChannelStats(t *testing.T) {
 	portCfg := config.PortConfig{
-		Type:         "http",
-		Path:         "/test",
-		ADesignation: "A1",
+		Type:            "http",
+		Path:            "/test",
+		SideDesignation: "A1",
 	}
 	appCfg := config.AppConfig{}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -85,9 +85,9 @@ func TestHTTPChannelStats(t *testing.T) {
 
 func TestHTTPChannelMethodNotAllowed(t *testing.T) {
 	portCfg := config.PortConfig{
-		Type:         "http",
-		Path:         "/test",
-		ADesignation: "A1",
+		Type:            "http",
+		Path:            "/test",
+		SideDesignation: "A1",
 	}
 	appCfg := config.AppConfig{}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -114,9 +114,9 @@ func TestHTTPChannelMethodNotAllowed(t *testing.T) {
 
 func TestHTTPChannelEmptyBody(t *testing.T) {
 	portCfg := config.PortConfig{
-		Type:         "http",
-		Path:         "/test",
-		ADesignation: "A1",
+		Type:            "http",
+		Path:            "/test",
+		SideDesignation: "A1",
 	}
 	appCfg := config.AppConfig{}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -140,9 +140,9 @@ func TestHTTPChannelEmptyBody(t *testing.T) {
 
 func TestHTTPChannelBuildRecord(t *testing.T) {
 	portCfg := config.PortConfig{
-		Type:         "http",
-		Path:         "/test",
-		ADesignation: "A1",
+		Type:            "http",
+		Path:            "/test",
+		SideDesignation: "A1",
 	}
 	appCfg := config.AppConfig{}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -188,9 +188,9 @@ func TestHTTPChannelStatsUpdates(t *testing.T) {
 	// Note: This test doesn't use a real DualWriter, so we can't test
 	// the full flow, but we can verify the stats tracking logic
 	portCfg := config.PortConfig{
-		Type:         "http",
-		Path:         "/test",
-		ADesignation: "A1",
+		Type:            "http",
+		Path:            "/test",
+		SideDesignation: "A1",
 	}
 	appCfg := config.AppConfig{}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))

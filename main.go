@@ -72,7 +72,7 @@ func main() {
 	}
 
 	// Start monitoring server (registers HTTP channels for routing)
-	monServer := monitoring.NewServer(&cfg.Monitoring, manager, cfg.Logging.BasePath, logger)
+	monServer := monitoring.NewServer(&cfg.Monitoring, manager, cfg.Logging.BasePath, logger, appVersion)
 	if err := monServer.Start(); err != nil {
 		logger.Error("Failed to start monitoring server", "error", err)
 		os.Exit(1)

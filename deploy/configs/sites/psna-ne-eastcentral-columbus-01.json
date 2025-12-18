@@ -1,16 +1,16 @@
 {
   "app": {
     "name": "NectarCollector",
-    "instance_id": "psna-ne-southcentralpan-lexington-01",
-    "fips_code": "1314010001"
+    "instance_id": "psna-ne-eastcentral-columbus-01",
+    "fips_code": "1425010002"
   },
   "ports": [
     {
       "device": "/dev/ttyS1",
       "side_designation": "B1",
-      "fips_code": "1314010001",
-      "vendor": "viper",
-      "county": "lexington",
+      "fips_code": "1425010002",
+      "vendor": "ecw",
+      "county": "columbus",
       "baud_rate": 0,
       "enabled": true
     }
@@ -44,8 +44,8 @@
     "exponential_backoff": true
   },
   "forwarder": {
-    "enabled": true,
+    "enabled": false,
     "remote_url": "nats://psna-capture-02:4222",
-    "remote_subject": "ne.cdr.psna-ne-southcentralpan-lexington-01.1314010001"
+    "remote_subject": "ne.cdr.psna-ne-eastcentral-columbus-01.1425010002"
   }
 }

@@ -1,18 +1,58 @@
 {
   "_instructions": [
-    "1. Copy this file to: setup-psna-{state}-{site}-01.json",
+    "1. Copy this file to: psna-{state}-{region}-{site}-01.json",
     "2. Fill in all fields (remove this _instructions block)",
-    "3. Push files: scp nectarcollector-linux setup.sh setup-*.json root@{ip}:/opt/nectarcollector/",
-    "4. Run setup: ssh -t root@{ip} '/opt/nectarcollector/setup.sh'",
+    "3. Update Ansible inventory with new host and site_config",
+    "4. Run: ansible-playbook -i inventory/hosts playbooks/05-app-config.yml --limit new-host",
     "See deploy/DEPLOYMENT.md for full instructions"
   ],
-  "hostname": "psna-{state}-{region}-{site}-01",
-  "fips_code": "0000000000",
-  "vendor": "vesta|intrado|motorola|zetron|viper",
-  "county": "countyname",
-  "ports": ["ttyS1"],
-  "dashboard_user": "psna",
-  "dashboard_pass": "CHANGE_ME",
-  "forwarder_remote_url": "nats://psna-capture-02:4222",
-  "forwarder_remote_subject": "{state}.cdr.{hostname}.{fips_code}"
+  "app": {
+    "name": "NectarCollector",
+    "instance_id": "psna-{state}-{region}-{site}-01",
+    "fips_code": "0000000000"
+  },
+  "ports": [
+    {
+      "device": "/dev/ttyS1",
+      "side_designation": "A1",
+      "fips_code": "0000000000",
+      "vendor": "vesta|intrado|motorola|zetron|viper|ecw|solacom",
+      "county": "countyname",
+      "baud_rate": 0,
+      "enabled": true
+    }
+  ],
+  "detection": {
+    "baud_rates": [9600, 19200, 38400, 57600, 115200, 4800, 2400, 1200, 300],
+    "detection_timeout_sec": 5,
+    "min_bytes_for_valid": 50
+  },
+  "nats": {
+    "url": "nats://localhost:4222",
+    "subject_prefix": "{state}.cdr",
+    "max_reconnects": -1,
+    "reconnect_wait_sec": 5
+  },
+  "logging": {
+    "base_path": "/var/log/nectarcollector",
+    "max_size_mb": 50,
+    "max_backups": 10,
+    "compress": true,
+    "level": "info"
+  },
+  "monitoring": {
+    "port": 8080,
+    "username": "psna",
+    "password": "CHANGE_ME"
+  },
+  "recovery": {
+    "reconnect_delay_sec": 5,
+    "max_reconnect_delay_sec": 300,
+    "exponential_backoff": true
+  },
+  "forwarder": {
+    "enabled": true,
+    "remote_url": "nats://psna-capture-02:4222",
+    "remote_subject": "{state}.cdr.{hostname}.{fips_code}"
+  }
 }

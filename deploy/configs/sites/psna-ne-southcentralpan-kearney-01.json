@@ -1,16 +1,16 @@
 {
   "app": {
     "name": "NectarCollector",
-    "instance_id": "psna-ne-southcentralpan-lexington-01",
+    "instance_id": "psna-ne-southcentralpan-kearney-01",
     "fips_code": "1314010001"
   },
   "ports": [
     {
-      "device": "/dev/ttyS1",
-      "side_designation": "B1",
+      "device": "/dev/ttyS2",
+      "side_designation": "A1",
       "fips_code": "1314010001",
       "vendor": "viper",
-      "county": "lexington",
+      "county": "kearney",
       "baud_rate": 0,
       "enabled": true
     }
@@ -46,6 +46,6 @@
   "forwarder": {
     "enabled": true,
     "remote_url": "nats://psna-capture-02:4222",
-    "remote_subject": "ne.cdr.psna-ne-southcentralpan-lexington-01.1314010001"
+    "remote_subject": "ne.cdr.psna-ne-southcentralpan-kearney-01.1314010001"
   }
 }

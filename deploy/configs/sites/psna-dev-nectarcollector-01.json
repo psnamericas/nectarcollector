@@ -1,9 +1,49 @@
 {
-  "hostname": "psna-dev-nectarcollector-01",
-  "fips_code": "9999999001",
-  "vendor": "viper",
-  "county": "countyname",
-  "ports": [{"device": "/dev/ttyS1", "a_designation": "B1", "enabled": true}],
-  "dashboard_user": "psna",
-  "dashboard_pass": "nectar2025"
+  "app": {
+    "name": "NectarCollector",
+    "instance_id": "psna-dev-nectarcollector-01",
+    "fips_code": "9999999001"
+  },
+  "ports": [
+    {
+      "device": "/dev/ttyS1",
+      "side_designation": "B1",
+      "fips_code": "9999999001",
+      "vendor": "viper",
+      "county": "countyname",
+      "baud_rate": 0,
+      "enabled": true
+    }
+  ],
+  "detection": {
+    "baud_rates": [9600, 19200, 38400, 57600, 115200, 4800, 2400, 1200, 300],
+    "detection_timeout_sec": 5,
+    "min_bytes_for_valid": 50
+  },
+  "nats": {
+    "url": "nats://localhost:4222",
+    "subject_prefix": "ne.cdr",
+    "max_reconnects": -1,
+    "reconnect_wait_sec": 5
+  },
+  "logging": {
+    "base_path": "/var/log/nectarcollector",
+    "max_size_mb": 50,
+    "max_backups": 10,
+    "compress": true,
+    "level": "info"
+  },
+  "monitoring": {
+    "port": 8080,
+    "username": "psna",
+    "password": "nectar2025"
+  },
+  "recovery": {
+    "reconnect_delay_sec": 5,
+    "max_reconnect_delay_sec": 300,
+    "exponential_backoff": true
+  },
+  "forwarder": {
+    "enabled": false
+  }
 }

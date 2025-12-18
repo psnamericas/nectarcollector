@@ -186,8 +186,8 @@ DEVICE_A=$(curl -s http://$COLLECTOR_A:8080/api/stats | jq -r '.channels[0].devi
 DEVICE_B=$(curl -s http://$COLLECTOR_B:8080/api/stats | jq -r '.channels[0].device')
 FIPS_A=$(curl -s http://$COLLECTOR_A:8080/api/stats | jq -r '.channels[0].fips_code')
 FIPS_B=$(curl -s http://$COLLECTOR_B:8080/api/stats | jq -r '.channels[0].fips_code')
-DESIG_A=$(curl -s http://$COLLECTOR_A:8080/api/stats | jq -r '.channels[0].a_designation')
-DESIG_B=$(curl -s http://$COLLECTOR_B:8080/api/stats | jq -r '.channels[0].a_designation')
+DESIG_A=$(curl -s http://$COLLECTOR_A:8080/api/stats | jq -r '.channels[0].side_designation')
+DESIG_B=$(curl -s http://$COLLECTOR_B:8080/api/stats | jq -r '.channels[0].side_designation')
 
 echo "Collector A: $DEVICE_A ($FIPS_A-$DESIG_A)"
 echo "Collector B: $DEVICE_B ($FIPS_B-$DESIG_B)"

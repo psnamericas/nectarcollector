@@ -97,7 +97,7 @@ func (m *Manager) Start(ctx context.Context) error {
 			startedCount++
 			m.logger.Info("Created HTTP capture channel",
 				"path", portCfg.Path,
-				"a_designation", portCfg.ADesignation)
+				"side_designation", portCfg.SideDesignation)
 		} else {
 			// Create serial channel
 			channel, err := NewChannel(
@@ -135,7 +135,7 @@ func (m *Manager) Start(ctx context.Context) error {
 			startedCount++
 			m.logger.Info("Started serial capture channel",
 				"device", portCfg.Device,
-				"a_designation", portCfg.ADesignation)
+				"side_designation", portCfg.SideDesignation)
 		}
 	}
 
@@ -291,13 +291,13 @@ func (m *Manager) EventsSubject() string {
 
 // ChannelInfo contains channel information for API responses
 type ChannelInfo struct {
-	Device       string      `json:"device"`
-	Path         string      `json:"path,omitempty"`
-	Type         string      `json:"type"`
-	ADesignation string      `json:"a_designation"`
-	FIPSCode     string      `json:"fips_code"`
-	State        string      `json:"state"`
-	Stats        interface{} `json:"stats"`
+	Device          string      `json:"device"`
+	Path            string      `json:"path,omitempty"`
+	Type            string      `json:"type"`
+	SideDesignation string      `json:"side_designation"`
+	FIPSCode        string      `json:"fips_code"`
+	State           string      `json:"state"`
+	Stats           interface{} `json:"stats"`
 }
 
 // GetAllStats returns detailed stats for all channels (for API)
@@ -320,12 +320,12 @@ func (m *Manager) GetAllStats() map[string]interface{} {
 		}
 
 		channelInfos = append(channelInfos, ChannelInfo{
-			Device:       ch.Device(),
-			Type:         "serial",
-			ADesignation: ch.config.ADesignation,
-			FIPSCode:     fipsCode,
-			State:        ch.State().String(),
-			Stats:        ch.Stats(),
+			Device:          ch.Device(),
+			Type:            "serial",
+			SideDesignation: ch.config.SideDesignation,
+			FIPSCode:        fipsCode,
+			State:           ch.State().String(),
+			Stats:           ch.Stats(),
 		})
 	}
 
@@ -338,12 +338,12 @@ func (m *Manager) GetAllStats() map[string]interface{} {
 		}
 
 		channelInfos = append(channelInfos, ChannelInfo{
-			Path:         cfg.Path,
-			Type:         "http",
-			ADesignation: cfg.ADesignation,
-			FIPSCode:     fipsCode,
-			State:        "running",
-			Stats:        ch.GetStats(),
+			Path:            cfg.Path,
+			Type:            "http",
+			SideDesignation: cfg.SideDesignation,
+			FIPSCode:        fipsCode,
+			State:           "running",
+			Stats:           ch.GetStats(),
 		})
 	}
 
@@ -391,15 +391,15 @@ func (m *Manager) getHealthStats() output.HealthStats {
 		}
 
 		channelHealth = append(channelHealth, output.ChannelHealth{
-			Device:       ch.Device(),
-			ADesignation: ch.config.ADesignation,
-			State:        ch.State().String(),
-			BaudRate:     stats.DetectedBaud,
-			Reconnects:   stats.Reconnects,
-			BytesRead:    stats.BytesRead,
-			LinesRead:    stats.LinesRead,
-			Errors:       stats.Errors,
-			LastLineAgo:  lastLineAgo,
+			Device:          ch.Device(),
+			SideDesignation: ch.config.SideDesignation,
+			State:           ch.State().String(),
+			BaudRate:        stats.DetectedBaud,
+			Reconnects:      stats.Reconnects,
+			BytesRead:       stats.BytesRead,
+			LinesRead:       stats.LinesRead,
+			Errors:          stats.Errors,
+			LastLineAgo:     lastLineAgo,
 		})
 	}
 
@@ -418,7 +418,7 @@ func (m *Manager) createHTTPChannel(portCfg config.PortConfig) (*HTTPChannel, er
 	}
 
 	// Build identifier for log file (e.g., "1429010002-A1")
-	identifier := fmt.Sprintf("%s-%s", fipsCode, portCfg.ADesignation)
+	identifier := fmt.Sprintf("%s-%s", fipsCode, portCfg.SideDesignation)
 
 	// Build NATS subject
 	var natsSubject string
@@ -461,18 +461,18 @@ func (m *Manager) GetHTTPChannels() []*HTTPChannel {
 
 // PortInfo contains port configuration and runtime state for API responses
 type PortInfo struct {
-	ID           string            `json:"id"`
-	Type         string            `json:"type"`
-	Device       string            `json:"device,omitempty"`
-	Path         string            `json:"path,omitempty"`
-	ListenPort   int               `json:"listen_port,omitempty"`
-	ADesignation string            `json:"a_designation"`
-	FIPSCode     string            `json:"fips_code"`
-	Vendor       string            `json:"vendor,omitempty"`
-	Enabled      bool              `json:"enabled"`
-	State        string            `json:"state"`
-	Config       PortConfigDetails `json:"config"`
-	Stats        interface{}       `json:"stats,omitempty"`
+	ID              string            `json:"id"`
+	Type            string            `json:"type"`
+	Device          string            `json:"device,omitempty"`
+	Path            string            `json:"path,omitempty"`
+	ListenPort      int               `json:"listen_port,omitempty"`
+	SideDesignation string            `json:"side_designation"`
+	FIPSCode        string            `json:"fips_code"`
+	Vendor          string            `json:"vendor,omitempty"`
+	Enabled         bool              `json:"enabled"`
+	State           string            `json:"state"`
+	Config          PortConfigDetails `json:"config"`
+	Stats           interface{}       `json:"stats,omitempty"`
 }
 
 // PortConfigDetails contains configurable port settings
@@ -499,11 +499,11 @@ func (m *Manager) GetPortConfigs() []PortInfo {
 		}
 
 		info := PortInfo{
-			ID:           portCfg.ID(),
-			ADesignation: portCfg.ADesignation,
-			FIPSCode:     fipsCode,
-			Vendor:       portCfg.Vendor,
-			Enabled:      portCfg.Enabled,
+			ID:              portCfg.ID(),
+			SideDesignation: portCfg.SideDesignation,
+			FIPSCode:        fipsCode,
+			Vendor:          portCfg.Vendor,
+			Enabled:         portCfg.Enabled,
 		}
 
 		if portCfg.IsHTTP() {
@@ -680,9 +680,9 @@ func (m *Manager) UpdatePortConfig(id string, updates map[string]interface{}) er
 				portCfg.Path = v
 				needsRestart = true
 			}
-		case "a_designation":
+		case "side_designation":
 			if v, ok := value.(string); ok {
-				portCfg.ADesignation = v
+				portCfg.SideDesignation = v
 				needsRestart = true
 			}
 		case "fips_code":
@@ -733,8 +733,8 @@ func (m *Manager) AddPort(portCfg config.PortConfig) error {
 	defer m.mu.Unlock()
 
 	// Validate required fields
-	if portCfg.ADesignation == "" {
-		return fmt.Errorf("a_designation is required")
+	if portCfg.SideDesignation == "" {
+		return fmt.Errorf("side_designation is required")
 	}
 
 	if portCfg.IsHTTP() {
@@ -759,10 +759,10 @@ func (m *Manager) AddPort(portCfg config.PortConfig) error {
 		}
 	}
 
-	// Check for duplicate A designation
+	// Check for duplicate side designation
 	for _, p := range m.config.Ports {
-		if p.ADesignation == portCfg.ADesignation {
-			return fmt.Errorf("a_designation already in use: %s", portCfg.ADesignation)
+		if p.SideDesignation == portCfg.SideDesignation {
+			return fmt.Errorf("side_designation already in use: %s", portCfg.SideDesignation)
 		}
 	}
 

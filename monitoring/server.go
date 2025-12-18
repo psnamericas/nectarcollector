@@ -140,12 +140,13 @@ type Server struct {
 	httpServers []*http.Server // Additional servers for HTTP capture on custom ports
 	logBasePath string
 	broker      *SSEBroker
+	version     string
 	ctx         context.Context
 	cancel      context.CancelFunc
 }
 
 // NewServer creates a new monitoring server
-func NewServer(cfg *config.MonitoringConfig, manager *capture.Manager, logBasePath string, logger *slog.Logger) *Server {
+func NewServer(cfg *config.MonitoringConfig, manager *capture.Manager, logBasePath string, logger *slog.Logger, version string) *Server {
 	ctx, cancel := context.WithCancel(context.Background())
 	broker := NewSSEBroker()
 
@@ -155,6 +156,7 @@ func NewServer(cfg *config.MonitoringConfig, manager *capture.Manager, logBasePa
 		logBasePath: logBasePath,
 		logger:      logger,
 		broker:      broker,
+		version:     version,
 		ctx:         ctx,
 		cancel:      cancel,
 	}
@@ -182,7 +184,7 @@ func (s *Server) watchLogFiles(ctx context.Context) {
 // tailLogFile tails a log file and broadcasts new lines
 func (s *Server) tailLogFile(ctx context.Context, ch *capture.Channel) {
 	// Get identifier from channel - matches the format used in channel.go
-	identifier := fmt.Sprintf("%s-%s", ch.FIPSCode(), ch.ADesignation())
+	identifier := fmt.Sprintf("%s-%s", ch.FIPSCode(), ch.SideDesignation())
 
 	logPath := filepath.Join(s.logBasePath, identifier+".log")
 
@@ -309,7 +311,7 @@ func (s *Server) Start() error {
 		s.logger.Info("Registering HTTP capture endpoint",
 			"path", path,
 			"port", s.config.Port,
-			"designation", ch.ADesignation())
+			"designation", ch.SideDesignation())
 		mux.Handle(path, ch)
 	}
 
@@ -357,7 +359,7 @@ func (s *Server) startHTTPCaptureServer(port int, channels []*capture.HTTPChanne
 		s.logger.Info("Registering HTTP capture endpoint",
 			"path", path,
 			"port", port,
-			"designation", ch.ADesignation())
+			"designation", ch.SideDesignation())
 		mux.Handle(path, ch)
 	}
 
@@ -528,7 +530,7 @@ func (s *Server) handlePorts(w http.ResponseWriter, r *http.Request) {
 
 		// Check if this port is in use by a channel
 		if ch, ok := channelsByDevice[device]; ok {
-			status.InUse = ch.ADesignation()
+			status.InUse = ch.SideDesignation()
 			// Get signals from the active channel's stats
 			stats := ch.Stats()
 			if stats.Signals != nil {
@@ -570,6 +572,7 @@ type SystemInfo struct {
 	Storage    []StorageInfo `json:"storage"`
 	Network    []NetInfo     `json:"network"`
 	GoRoutines int           `json:"goroutines"`
+	Version    string        `json:"version"`
 }
 
 // CPUInfo contains CPU usage information
@@ -615,6 +618,7 @@ type NetInfo struct {
 func (s *Server) handleSystem(w http.ResponseWriter, r *http.Request) {
 	info := SystemInfo{
 		GoRoutines: runtime.NumGoroutine(),
+		Version:    s.version,
 	}
 
 	// Hostname
@@ -1271,9 +1275,9 @@ func validatePortUpdates(updates map[string]interface{}) error {
 			} else {
 				return fmt.Errorf("path must be a string")
 			}
-		case "a_designation":
+		case "side_designation":
 			if _, ok := value.(string); !ok {
-				return fmt.Errorf("a_designation must be a string")
+				return fmt.Errorf("side_designation must be a string")
 			}
 		case "fips_code":
 			if _, ok := value.(string); !ok {

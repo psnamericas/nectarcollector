@@ -289,7 +289,7 @@ Expected output:
   "channels": [
     {
       "device": "/dev/ttyS1",
-      "a_designation": "A1",
+      "side_designation": "A1",
       "fips_code": "1314010001",
       "state": "detecting",
       "stats": { ... }
@@ -582,7 +582,7 @@ Generates this full config at `/etc/nectarcollector/config.json`:
   "ports": [
     {
       "device": "/dev/ttyS1",
-      "a_designation": "A1",
+      "side_designation": "A1",
       "fips_code": "1314010001",
       "vendor": "viper",
       "county": "kearney",

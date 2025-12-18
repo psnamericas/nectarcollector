@@ -1,11 +1,51 @@
 {
-  "hostname": "psna-ne-metro-omaha-02",
-  "fips_code": "1314010004",
-  "vendor": "viper",
-  "county": "omaha",
-  "ports": [{"device": "ttyS1", "designation": "B1"}],
-  "dashboard_user": "psna",
-  "dashboard_pass": "nectar2025",
-  "forwarder_remote_url": "nats://psna-capture-02:4222",
-  "forwarder_remote_subject": "ne.cdr.psna-ne-metro-omaha-02.1314010004"
+  "app": {
+    "name": "NectarCollector",
+    "instance_id": "psna-ne-metro-omaha-02",
+    "fips_code": "1314010004"
+  },
+  "ports": [
+    {
+      "device": "/dev/ttyS1",
+      "side_designation": "B1",
+      "fips_code": "1314010004",
+      "vendor": "viper",
+      "county": "omaha",
+      "baud_rate": 0,
+      "enabled": true
+    }
+  ],
+  "detection": {
+    "baud_rates": [9600, 19200, 38400, 57600, 115200, 4800, 2400, 1200, 300],
+    "detection_timeout_sec": 5,
+    "min_bytes_for_valid": 50
+  },
+  "nats": {
+    "url": "nats://localhost:4222",
+    "subject_prefix": "ne.cdr",
+    "max_reconnects": -1,
+    "reconnect_wait_sec": 5
+  },
+  "logging": {
+    "base_path": "/var/log/nectarcollector",
+    "max_size_mb": 50,
+    "max_backups": 10,
+    "compress": true,
+    "level": "info"
+  },
+  "monitoring": {
+    "port": 8080,
+    "username": "psna",
+    "password": "nectar2025"
+  },
+  "recovery": {
+    "reconnect_delay_sec": 5,
+    "max_reconnect_delay_sec": 300,
+    "exponential_backoff": true
+  },
+  "forwarder": {
+    "enabled": true,
+    "remote_url": "nats://psna-capture-02:4222",
+    "remote_subject": "ne.cdr.psna-ne-metro-omaha-02.1314010004"
+  }
 }
