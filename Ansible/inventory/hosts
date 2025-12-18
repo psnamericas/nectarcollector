@@ -1,0 +1,39 @@
+---
+# ============================================================
+# PSNA Ansible Inventory for Nectar Collector Remote Devices
+# ----------------------------------------------------------
+# Notes:
+# ------
+#  - Connect to Tailscale BEFORE running this playbook otherwise the connections won't work
+#  - Use the tailscale DNS name for the ansible_host var
+#  - site_config: filename from deploy/configs/sites/ for this host
+#
+# JetStream Stream Sizes:
+#  - stream_health_max_bytes: Health heartbeats (default: 1G, prod: 5G)
+#  - stream_cdr_max_bytes: CDR data buffer (default: 5G, prod: 50G)
+#  - stream_events_max_bytes: Event logs (default: 500M, prod: 1G)
+# ============================================================
+
+all:
+  children:
+
+    # -------------------------------------------------------
+    # General servers - common role only (APT, SNMP, etc)
+    # -------------------------------------------------------
+    general_servers:
+      hosts:
+        pollen-pusher.tailc90ef2.ts.net:
+          ansible_host: pollen-pusher.tailc90ef2.ts.net
+          ansible_user: root
+          ansible_become: true
+          site_config: pollen-pusher.json
+          # Prod environment Settings for Jetstream
+          stream_health_max_bytes: "5G"
+          stream_cdr_max_bytes: "50G"
+          stream_events_max_bytes: "1G"
+
+          # Test environment Settings for Jetstream
+          #  stream_health_max_bytes: "1G"
+          #  stream_cdr_max_bytes: "5G"
+          #  stream_events_max_bytes: "500M"
+

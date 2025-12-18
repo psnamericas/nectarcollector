@@ -1,0 +1,18 @@
+---
+- name: Install SNMP packages
+  package:
+    name: "{{ snmp_package }}"
+    state: present
+
+- name: Configure snmpd.conf
+  template:
+    src: snmpd.conf.j2
+    dest: /etc/snmp/snmpd.conf
+    mode: '0644'
+  notify: Restart SNMP
+
+- name: Ensure SNMP service is started and enabled
+  service:
+    name: "{{ snmp_service }}"
+    state: started
+    enabled: yes

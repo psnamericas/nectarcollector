@@ -1,0 +1,6 @@
+---
+snmp_package: snmpd
+snmp_service: snmpd
+ansible_snmp_passwd: public
+snmp_location: "US Gov Cloud Virginia"
+snmp_contact: "PSNA Admin <watchtower@psnamerica.com>"

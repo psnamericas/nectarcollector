@@ -1,0 +1,43 @@
+---
+# ============================================================
+# Required Directories Playbook
+# ----------------------------------------------------------
+# Creates directories needed by NATS and NectarCollector
+# ============================================================
+
+- name: Required Directories
+  hosts: general_servers
+  gather_facts: false
+
+  tasks:
+    - name: Create base data directory
+      ansible.builtin.file:
+        path: /var/lib/nectarcollector
+        state: directory
+        mode: '0755'
+        owner: root
+        group: root
+
+    - name: Create NATS data directory
+      ansible.builtin.file:
+        path: /var/lib/nectarcollector/nats
+        state: directory
+        mode: '0755'
+        owner: nats
+        group: nats
+
+    - name: Create log directory
+      ansible.builtin.file:
+        path: /var/log/nectarcollector
+        state: directory
+        mode: '0775'
+        owner: nectarcollector
+        group: nectarcollector
+
+    - name: Create config directory
+      ansible.builtin.file:
+        path: /etc/nectarcollector
+        state: directory
+        mode: '0755'
+        owner: root
+        group: root

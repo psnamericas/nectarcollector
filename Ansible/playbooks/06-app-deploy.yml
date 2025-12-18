@@ -1,0 +1,123 @@
+---
+# ============================================================
+# NectarCollector Binary Deployment Playbook
+# ----------------------------------------------------------
+# Builds Go binary locally, deploys to remote if changed
+#
+# This is the playbook for daily use when pushing code updates.
+# ============================================================
+
+- name: Build NectarCollector binary locally
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    project_root: "{{ playbook_dir }}/../.."
+    binary_name: nectarcollector-linux
+
+  tasks:
+    - name: Display build info
+      ansible.builtin.debug:
+        msg: "Building in: {{ project_root }}"
+
+    - name: Build Go binary for Linux
+      ansible.builtin.shell:
+        cmd: go build -o {{ binary_name }}
+        chdir: "{{ project_root }}"
+      environment:
+        GOOS: linux
+        GOARCH: amd64
+      register: build_result
+      failed_when: build_result.rc != 0
+
+    - name: Show build error
+      ansible.builtin.debug:
+        msg: "Build failed: {{ build_result.stderr }}"
+      when: build_result.rc != 0
+
+    - name: Get local binary checksum
+      ansible.builtin.stat:
+        path: "{{ project_root }}/{{ binary_name }}"
+        checksum_algorithm: sha256
+      register: local_binary
+
+    - name: Fail if binary was not built
+      ansible.builtin.fail:
+        msg: "Binary not found at {{ project_root }}/{{ binary_name }}. Build failed."
+      when: not local_binary.stat.exists
+
+    - name: Store build facts for deployment
+      ansible.builtin.set_fact:
+        local_checksum: "{{ local_binary.stat.checksum }}"
+        local_binary_path: "{{ project_root }}/{{ binary_name }}"
+
+
+- name: Deploy NectarCollector binary to remote servers
+  hosts: general_servers
+  gather_facts: false
+
+  vars:
+    remote_binary_path: /usr/local/bin/nectarcollector
+    service_name: nectarcollector
+
+  tasks:
+    - name: Get build facts from localhost
+      ansible.builtin.set_fact:
+        local_checksum: "{{ hostvars['localhost']['local_checksum'] }}"
+        local_binary_path: "{{ hostvars['localhost']['local_binary_path'] }}"
+
+    - name: Check remote binary
+      ansible.builtin.stat:
+        path: "{{ remote_binary_path }}"
+        checksum_algorithm: sha256
+      register: remote_binary
+
+    - name: Determine if update is needed
+      ansible.builtin.set_fact:
+        needs_update: "{{ not remote_binary.stat.exists or remote_binary.stat.checksum != local_checksum }}"
+
+    - name: Display checksum comparison
+      ansible.builtin.debug:
+        msg: >-
+          Local: {{ local_checksum }}
+          | Remote: {{ remote_binary.stat.checksum | default('NOT FOUND') }}
+          | Update needed: {{ needs_update }}
+
+    - name: Stop service before update
+      ansible.builtin.systemd:
+        name: "{{ service_name }}"
+        state: stopped
+      when: needs_update and remote_binary.stat.exists
+      ignore_errors: true
+
+    - name: Copy binary to remote
+      ansible.builtin.copy:
+        src: "{{ local_binary_path }}"
+        dest: "{{ remote_binary_path }}"
+        mode: '0755'
+        owner: root
+        group: root
+      when: needs_update
+
+    - name: Start service after update
+      ansible.builtin.systemd:
+        name: "{{ service_name }}"
+        state: started
+        enabled: true
+      when: needs_update
+
+    - name: Ensure service is running
+      ansible.builtin.systemd:
+        name: "{{ service_name }}"
+        state: started
+        enabled: true
+
+    - name: Verify service status
+      ansible.builtin.systemd:
+        name: "{{ service_name }}"
+      register: service_status
+
+    - name: Display final status
+      ansible.builtin.debug:
+        msg: "Service {{ service_name }} is {{ service_status.status.ActiveState }}"

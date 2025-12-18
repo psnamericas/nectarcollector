@@ -1,0 +1,6 @@
+---
+- name: Apply common configuration
+  hosts: general_servers
+  become: yes
+  roles:
+    - snmp

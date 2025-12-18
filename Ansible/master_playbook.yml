@@ -1,0 +1,23 @@
+---
+# ============================================================
+# Master Playbook
+# ----------------------------------------------------------
+# Runs SNMP configuration and full NectarCollector deployment.
+#
+# Usage:
+#   ansible-playbook master_playbook.yml
+#   ansible-playbook master_playbook.yml --limit <hostname>
+#
+# For NectarCollector deployment only, use:
+#   ansible-playbook playbooks/deploy-all.yml
+#
+# For code updates only, use:
+#   ansible-playbook playbooks/06-app-deploy.yml
+# ============================================================
+
+# SNMP configuration (legacy)
+- import_playbook: playbooks/common.yml
+
+# NectarCollector full deployment
+- import_playbook: playbooks/deploy-all.yml
+
