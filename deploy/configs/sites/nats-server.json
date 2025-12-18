@@ -1,0 +1,9 @@
+{
+  "hostname": "nats-server",
+  "fips_code": "9999999002",
+  "vendor": "viper",
+  "county": "countyname",
+  "ports": [{"device": "/dev/ttyS1", "a_designation": "B1", "enabled": true}],
+  "dashboard_user": "psna",
+  "dashboard_pass": "nectar2025"
+}
