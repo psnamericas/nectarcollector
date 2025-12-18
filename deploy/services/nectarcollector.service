@@ -7,7 +7,7 @@ Wants=nats-server.service
 [Service]
 Type=simple
 User=nectarcollector
-Group=nectarcollector
+Group=dialout
 ExecStart=/usr/local/bin/nectarcollector -config /etc/nectarcollector/config.json
 Restart=always
 RestartSec=5
