@@ -1,0 +1,35 @@
+---
+# ============================================================
+# Service Users Playbook
+# ----------------------------------------------------------
+# Creates service accounts for NATS and NectarCollector
+# ============================================================
+
+- name: Service Users
+  hosts: general_servers
+  gather_facts: false
+
+  tasks:
+    - name: Create nectarcollector group
+      ansible.builtin.group:
+        name: nectarcollector
+        system: true
+        state: present
+
+    - name: Create nats service user
+      ansible.builtin.user:
+        name: nats
+        system: true
+        shell: /usr/sbin/nologin
+        groups: nectarcollector
+        create_home: false
+        state: present
+
+    - name: Create nectarcollector service user
+      ansible.builtin.user:
+        name: nectarcollector
+        system: true
+        shell: /usr/sbin/nologin
+        groups: dialout
+        create_home: false
+        state: present

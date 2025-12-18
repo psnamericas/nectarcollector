@@ -1,0 +1,5 @@
+---
+- name: Restart SNMP
+  service:
+    name: "{{ snmp_service }}"
+    state: restarted

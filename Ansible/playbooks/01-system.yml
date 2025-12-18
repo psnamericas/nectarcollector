@@ -1,0 +1,64 @@
+---
+# ============================================================
+# System Configuration Playbook
+# ----------------------------------------------------------
+# Configures timezone, installs packages, sets up serial console
+# ============================================================
+
+- name: System Configuration
+  hosts: general_servers
+  gather_facts: true
+
+  vars:
+    system_packages:
+      - curl
+      - wget
+      - git
+      - jq
+      - htop
+      - iotop
+      - net-tools
+      - unzip
+      - build-essential
+
+  tasks:
+    - name: Set timezone to UTC
+      ansible.builtin.command:
+        cmd: timedatectl set-timezone UTC
+      changed_when: false
+
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Install system packages
+      ansible.builtin.apt:
+        name: "{{ system_packages }}"
+        state: present
+
+    # ---------------------------------------------------------
+    # Serial Console (DISABLED - enable after testing)
+    # ---------------------------------------------------------
+    # - name: Configure serial console in GRUB
+    #   ansible.builtin.copy:
+    #     dest: /etc/default/grub.d/serial-console.cfg
+    #     content: |
+    #       # Serial console configuration for recovery access
+    #       GRUB_TERMINAL="console serial"
+    #       GRUB_SERIAL_COMMAND="serial --speed=115200 --unit=0 --word=8 --parity=no --stop=1"
+    #       GRUB_CMDLINE_LINUX="console=tty0 console=ttyS0,115200n8"
+    #     mode: '0644'
+    #     owner: root
+    #     group: root
+    #   register: grub_config
+    #
+    # - name: Update GRUB configuration
+    #   ansible.builtin.command:
+    #     cmd: update-grub
+    #   when: grub_config.changed
+    #
+    # - name: Enable serial getty on ttyS0
+    #   ansible.builtin.systemd:
+    #     name: serial-getty@ttyS0.service
+    #     enabled: true

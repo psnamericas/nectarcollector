@@ -1,0 +1,282 @@
+---
+# ============================================================
+# NATS Server Playbook
+# ----------------------------------------------------------
+# Installs NATS server + CLI, deploys config, starts service,
+# creates JetStream streams
+# ============================================================
+
+- name: NATS Server Setup
+  hosts: general_servers
+  gather_facts: true
+
+  vars:
+    nats_version: "2.10.22"
+    nats_cli_version: "0.1.5"
+    nats_config_path: "{{ playbook_dir }}/../../deploy/configs/nats-server.conf"
+    services_path: "{{ playbook_dir }}/../../deploy/services"
+    # Stream sizes (override in inventory for production)
+    stream_health_max_bytes: "1G"
+    stream_cdr_max_bytes: "5G"
+    stream_events_max_bytes: "500M"
+
+  tasks:
+    # ---------------------------------------------------------
+    # Cleanup Legacy NATS Installation
+    # ---------------------------------------------------------
+    - name: Stop any running nats-server processes
+      ansible.builtin.shell: pkill -9 nats-server || true
+      changed_when: false
+
+    - name: Wait for port 4222 to be released
+      ansible.builtin.wait_for:
+        port: 4222
+        host: 127.0.0.1
+        state: stopped
+        timeout: 10
+      ignore_errors: true
+
+    - name: Remove legacy NATS config directory
+      ansible.builtin.file:
+        path: /etc/nats
+        state: absent
+
+    - name: Remove legacy NATS data directory
+      ansible.builtin.file:
+        path: /var/lib/nats
+        state: absent
+
+    - name: Check if legacy nats.service exists
+      ansible.builtin.stat:
+        path: /etc/systemd/system/nats.service
+      register: legacy_nats_service
+
+    - name: Stop and disable legacy nats.service
+      ansible.builtin.systemd:
+        name: nats.service
+        state: stopped
+        enabled: false
+      when: legacy_nats_service.stat.exists
+
+    - name: Remove legacy nats.service file
+      ansible.builtin.file:
+        path: /etc/systemd/system/nats.service
+        state: absent
+      when: legacy_nats_service.stat.exists
+      notify: Reload systemd
+
+    # ---------------------------------------------------------
+    # NATS Server Installation
+    # ---------------------------------------------------------
+    - name: Check if NATS server is installed
+      ansible.builtin.stat:
+        path: /usr/local/bin/nats-server
+      register: nats_server_bin
+
+    - name: Download NATS server
+      ansible.builtin.get_url:
+        url: "https://github.com/nats-io/nats-server/releases/download/v{{ nats_version }}/nats-server-v{{ nats_version }}-linux-{{ ansible_architecture | replace('x86_64', 'amd64') }}.tar.gz"
+        dest: /tmp/nats-server.tar.gz
+        mode: '0644'
+      when: not nats_server_bin.stat.exists
+
+    - name: Extract NATS server
+      ansible.builtin.unarchive:
+        src: /tmp/nats-server.tar.gz
+        dest: /tmp
+        remote_src: true
+      when: not nats_server_bin.stat.exists
+
+    - name: Install NATS server binary
+      ansible.builtin.copy:
+        src: "/tmp/nats-server-v{{ nats_version }}-linux-{{ ansible_architecture | replace('x86_64', 'amd64') }}/nats-server"
+        dest: /usr/local/bin/nats-server
+        mode: '0755'
+        remote_src: true
+      when: not nats_server_bin.stat.exists
+
+    - name: Clean up NATS server download
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /tmp/nats-server.tar.gz
+        - "/tmp/nats-server-v{{ nats_version }}-linux-{{ ansible_architecture | replace('x86_64', 'amd64') }}"
+      when: not nats_server_bin.stat.exists
+
+    # ---------------------------------------------------------
+    # NATS CLI Installation
+    # ---------------------------------------------------------
+    - name: Check if NATS CLI is installed
+      ansible.builtin.stat:
+        path: /usr/local/bin/nats
+      register: nats_cli_bin
+
+    - name: Download NATS CLI
+      ansible.builtin.get_url:
+        url: "https://github.com/nats-io/natscli/releases/download/v{{ nats_cli_version }}/nats-{{ nats_cli_version }}-linux-{{ ansible_architecture | replace('x86_64', 'amd64') }}.zip"
+        dest: /tmp/nats-cli.zip
+        mode: '0644'
+      when: not nats_cli_bin.stat.exists
+
+    - name: Extract NATS CLI
+      ansible.builtin.unarchive:
+        src: /tmp/nats-cli.zip
+        dest: /tmp
+        remote_src: true
+      when: not nats_cli_bin.stat.exists
+
+    - name: Install NATS CLI binary
+      ansible.builtin.copy:
+        src: "/tmp/nats-{{ nats_cli_version }}-linux-{{ ansible_architecture | replace('x86_64', 'amd64') }}/nats"
+        dest: /usr/local/bin/nats
+        mode: '0755'
+        remote_src: true
+      when: not nats_cli_bin.stat.exists
+
+    - name: Clean up NATS CLI download
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /tmp/nats-cli.zip
+        - "/tmp/nats-{{ nats_cli_version }}-linux-{{ ansible_architecture | replace('x86_64', 'amd64') }}"
+      when: not nats_cli_bin.stat.exists
+
+    # ---------------------------------------------------------
+    # NATS Configuration
+    # ---------------------------------------------------------
+    - name: Deploy NATS server config
+      ansible.builtin.copy:
+        src: "{{ nats_config_path }}"
+        dest: /etc/nectarcollector/nats-server.conf
+        mode: '0644'
+        owner: nectarcollector
+        group: nectarcollector
+      notify: Restart nats-server
+
+    - name: Copy NATS service file
+      ansible.builtin.copy:
+        src: "{{ services_path }}/nats-server.service"
+        dest: /etc/systemd/system/nats-server.service
+        mode: '0644'
+      notify:
+        - Reload systemd
+        - Restart nats-server
+
+    # ---------------------------------------------------------
+    # NATS Service
+    # ---------------------------------------------------------
+    - name: Enable and start NATS server
+      ansible.builtin.systemd:
+        name: nats-server
+        state: started
+        enabled: true
+        daemon_reload: true
+
+    - name: Wait for NATS server to be ready
+      ansible.builtin.wait_for:
+        port: 4222
+        host: 127.0.0.1
+        timeout: 30
+
+    # ---------------------------------------------------------
+    # JetStream Streams
+    # ---------------------------------------------------------
+    - name: Check if health stream exists
+      ansible.builtin.command:
+        cmd: nats stream info health
+      register: health_stream_check
+      changed_when: false
+      failed_when: false
+
+    - name: Create health stream
+      ansible.builtin.command:
+        cmd: >
+          nats stream add health
+          --subjects "*.health.>"
+          --retention limits
+          --storage file
+          --max-age 30d
+          --max-bytes {{ stream_health_max_bytes }}
+          --max-msg-size 8K
+          --discard old
+          --replicas 1
+          --dupe-window 1m
+          --no-deny-delete
+          --no-deny-purge
+          --defaults
+      when: health_stream_check.rc != 0
+
+    - name: Check if cdr stream exists
+      ansible.builtin.command:
+        cmd: nats stream info cdr
+      register: cdr_stream_check
+      changed_when: false
+      failed_when: false
+
+    - name: Create cdr stream
+      ansible.builtin.command:
+        cmd: >
+          nats stream add cdr
+          --subjects "*.cdr.>"
+          --retention limits
+          --storage file
+          --max-bytes {{ stream_cdr_max_bytes }}
+          --max-msg-size 10M
+          --discard old
+          --replicas 1
+          --dupe-window 2m
+          --no-deny-delete
+          --no-deny-purge
+          --defaults
+      when: cdr_stream_check.rc != 0
+
+    - name: Check if events stream exists
+      ansible.builtin.command:
+        cmd: nats stream info events
+      register: events_stream_check
+      changed_when: false
+      failed_when: false
+
+    - name: Create events stream
+      ansible.builtin.command:
+        cmd: >
+          nats stream add events
+          --subjects "*.events.>"
+          --retention limits
+          --storage file
+          --max-bytes {{ stream_events_max_bytes }}
+          --max-msg-size 4K
+          --discard old
+          --replicas 1
+          --dupe-window 1m
+          --no-deny-delete
+          --no-deny-purge
+          --defaults
+      when: events_stream_check.rc != 0
+
+  handlers:
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Stop nats-server
+      ansible.builtin.systemd:
+        name: nats-server
+        state: stopped
+      listen: "Restart nats-server"
+
+    - name: Wait for port 4222 to be released
+      ansible.builtin.wait_for:
+        port: 4222
+        host: 127.0.0.1
+        state: stopped
+        timeout: 15
+      listen: "Restart nats-server"
+
+    - name: Start nats-server
+      ansible.builtin.systemd:
+        name: nats-server
+        state: started
+      listen: "Restart nats-server"

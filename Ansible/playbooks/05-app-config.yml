@@ -1,0 +1,49 @@
+---
+# ============================================================
+# NectarCollector Configuration Playbook
+# ----------------------------------------------------------
+# Deploys site-specific config and service file
+# ============================================================
+
+- name: NectarCollector Configuration
+  hosts: general_servers
+  gather_facts: false
+
+  vars:
+    configs_path: "{{ playbook_dir }}/../../deploy/configs/sites"
+    services_path: "{{ playbook_dir }}/../../deploy/services"
+
+  tasks:
+    - name: Verify site_config is defined
+      ansible.builtin.fail:
+        msg: "site_config variable must be defined for {{ inventory_hostname }} in inventory"
+      when: site_config is not defined
+
+    - name: Deploy site-specific config
+      ansible.builtin.copy:
+        src: "{{ configs_path }}/{{ site_config }}"
+        dest: /etc/nectarcollector/config.json
+        mode: '0640'
+        owner: nectarcollector
+        group: nectarcollector
+      notify: Restart nectarcollector
+
+    - name: Copy NectarCollector service file
+      ansible.builtin.copy:
+        src: "{{ services_path }}/nectarcollector.service"
+        dest: /etc/systemd/system/nectarcollector.service
+        mode: '0644'
+      notify:
+        - Reload systemd
+        - Restart nectarcollector
+
+  handlers:
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Restart nectarcollector
+      ansible.builtin.systemd:
+        name: nectarcollector
+        state: restarted
+      ignore_errors: true  # May fail on fresh install if binary not yet deployed

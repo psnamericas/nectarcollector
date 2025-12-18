@@ -1,0 +1,31 @@
+---
+# ============================================================
+# Master Deployment Playbook
+# ----------------------------------------------------------
+# Runs all deployment playbooks in order.
+#
+# USAGE:
+#   ansible-playbook playbooks/deploy-all.yml
+#
+# TESTING:
+#   Comment out any import line below to skip that section.
+#   Or run individual playbooks directly for faster iteration.
+# ============================================================
+
+# System packages, timezone, serial console
+- import_playbook: 01-system.yml
+
+# Service user accounts (nats, nectarcollector)
+- import_playbook: 02-users.yml
+
+# Required directories (/var/lib, /var/log, /etc)
+- import_playbook: 03-directories.yml
+
+# NATS server install, config, service, JetStream streams
+- import_playbook: 04-nats.yml
+
+# NectarCollector site config and service file
+- import_playbook: 05-app-config.yml
+
+# Build and deploy NectarCollector binary
+- import_playbook: 06-app-deploy.yml
