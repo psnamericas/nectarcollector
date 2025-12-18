@@ -23,9 +23,9 @@
       ansible.builtin.copy:
         src: "{{ configs_path }}/{{ site_config }}"
         dest: /etc/nectarcollector/config.json
-        mode: '0644'
-        owner: root
-        group: root
+        mode: '0640'
+        owner: nectarcollector
+        group: nectarcollector
       notify: Restart nectarcollector
 
     - name: Copy NectarCollector service file

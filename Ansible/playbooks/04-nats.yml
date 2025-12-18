@@ -151,8 +151,8 @@
         src: "{{ nats_config_path }}"
         dest: /etc/nectarcollector/nats-server.conf
         mode: '0644'
-        owner: root
-        group: root
+        owner: nectarcollector
+        group: nectarcollector
       notify: Restart nats-server
 
     - name: Copy NATS service file
