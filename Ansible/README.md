@@ -6,7 +6,7 @@ Ansible playbooks for deploying and managing NectarCollector infrastructure.
 
 1. Connect to Tailscale VPN
 
-2. Go to Bitwarden and grab the password form the Ansible entry
+2. Go to Bitwarden and grab the password from the Ansible entry
 
 3. Make sure the site has the correct config in: `deploy/configs/sites`
 
