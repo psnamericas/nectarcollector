@@ -4,15 +4,25 @@ Ansible playbooks for deploying and managing NectarCollector infrastructure.
 
 ## Quick Start
 
-```bash
-cd Ansible
+1. Connect to Tailscale VPN
 
-# Deploy everything (initial setup)
-ansible-playbook playbooks/deploy-all.yml
+2. Go to Bitwarden and grab the password form the Ansible entry
 
-# Deploy code changes only (daily use)
-ansible-playbook playbooks/06-app-deploy.yml
-```
+3. Make sure the site has the correct config in: `deploy/configs/sites`
+
+4. Edit the `Ansible/inventory/hosts` file and add/edit the new server (follow the example)
+
+5. Run the playbook on the new server:
+   `ansible-playbook master_playbook.yml --ask-vault-pass --limit new-server.tailc90ef2.ts.net`
+
+### Notes:
+   * <u>Make sure to include the `--limit` option otherwise the playbooks will run on ALL servers in the inventory file!</u><br>
+
+   * To deploy just the code changes (code changes don't require passwd): <br>
+    `ansible-playbook playbooks/06-app-deploy.yml --limit new-server.tailc90ef2.ts.net`
+
+<br>
+
 
 ## Playbook Structure
 
@@ -26,43 +36,8 @@ ansible-playbook playbooks/06-app-deploy.yml
 | `05-app-config.yml` | NectarCollector config + service file | Config changes |
 | `06-app-deploy.yml` | Build + deploy binary | **Code changes (daily use)** |
 
-## Common Workflows
+<br>
 
-### Deploy New Code (Most Common)
-After making code changes, push the new binary:
-```bash
-ansible-playbook playbooks/06-app-deploy.yml
-```
-
-### Update Configuration Only
-Changed a site config file:
-```bash
-ansible-playbook playbooks/05-app-config.yml
-```
-
-### Full Deployment
-Initial server setup or complete refresh:
-```bash
-ansible-playbook playbooks/deploy-all.yml
-```
-
-### Testing Individual Components
-Run specific playbooks to test sections in isolation:
-```bash
-ansible-playbook playbooks/01-system.yml    # Just system setup
-ansible-playbook playbooks/04-nats.yml      # Just NATS
-```
-
-### Skip Sections During Testing
-Edit `deploy-all.yml` and comment out lines:
-```yaml
-- import_playbook: 01-system.yml
-- import_playbook: 02-users.yml
-# - import_playbook: 03-directories.yml    # <-- Skipped
-- import_playbook: 04-nats.yml
-# - import_playbook: 05-app-config.yml     # <-- Skipped
-- import_playbook: 06-app-deploy.yml
-```
 
 ## Inventory Management
 
@@ -80,52 +55,21 @@ general_servers:
       site_config: setup-psna-ne-location-name-01.json
 ```
 
-**Required Variables:**
+**Required Variables:**  
+
 - `ansible_host`: Tailscale DNS name or IP
 - `ansible_user`: SSH user (typically root)
 - `ansible_become`: Enable privilege escalation
 - `site_config`: Filename from `deploy/configs/sites/` for this host
 
+<br>
 ### Site Config Files
 Each server needs a config file in `deploy/configs/sites/`:
+
 ```
-deploy/configs/sites/
-  setup-psna-ne-metro-omaha-01.json
-  setup-psna-ne-northeast-norfolk-01.json
-  ...
+deploy/configs/sites/setup-psna-ne-metro-omaha-01.json
 ```
-
-## Pre-Flight Checks
-
-### Verify Connectivity
-```bash
-# Ping all hosts
-ansible all -m ping
-
-# Ping specific host
-ansible psna-dev-nectarcollector-01.tailc90ef2.ts.net -m ping
-```
-
-### Dry Run (Check Mode)
-Preview changes without applying:
-```bash
-ansible-playbook playbooks/deploy-all.yml --check
-
-# With diff output
-ansible-playbook playbooks/deploy-all.yml --check --diff
-```
-
-### Syntax Check
-Validate playbook syntax:
-```bash
-ansible-playbook playbooks/deploy-all.yml --syntax-check
-```
-
-### List Hosts
-Show which hosts would be targeted:
-```bash
-ansible-playbook playbooks/deploy-all.yml --list-hosts
-```
+<br>
 
 ## Security (Ansible Vault)
 
@@ -134,15 +78,20 @@ Sensitive data is encrypted with Ansible Vault.
 - **Vault Password**: Stored in `.vault_pass` (not committed)
 - **Encrypted Variables**: `group_vars/all/passwd.yml`
 
+<br>
+
 ### Update Encrypted Password
 ```bash
 ansible-vault encrypt_string --vault-password-file .vault_pass 'new_password' --name 'variable_name'
 ```
+<br>
+
 
 ### Run with Vault Password
 ```bash
 ansible-playbook playbooks/deploy-all.yml --ask-vault-pass
 ```
+<br>
 
 ## Troubleshooting
 
@@ -171,6 +120,7 @@ Resume from a specific task:
 ```bash
 ansible-playbook playbooks/06-app-deploy.yml --start-at-task="Copy binary to remote"
 ```
+<br>
 
 ## Directory Structure
 
